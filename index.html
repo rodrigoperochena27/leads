@@ -74,6 +74,15 @@ textarea{height:62px;resize:vertical}
 .center .muted{color:var(--sub);font-size:14.5px;margin:6px 0 0}
 .btn-back{display:inline-block;margin-top:22px;padding:14px 30px;border-radius:13px;background:var(--ink);color:#fff;text-decoration:none;font-weight:800;border:0;font-size:15px;cursor:pointer}
 .spin{width:36px;height:36px;border:4px solid var(--line);border-top-color:var(--ink);border-radius:50%;margin:80px auto;animation:g .8s linear infinite}
+
+/* ── Prompt post-llamada: un tap y guarda ── */
+.callprompt{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:12px;right:12px;margin:0 auto;max-width:456px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 8px 30px rgba(16,24,40,.18);z-index:20}
+.callprompt p{margin:0 0 10px;font-size:15px;font-weight:800;color:#101828}
+.callprompt .cp-row{display:flex;gap:9px}
+.cp-btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:14.5px;font-weight:800;cursor:pointer}
+.cp-yes{background:#12805c;color:#fff}
+.cp-no{background:#eef0f4;color:#101828}
+.cp-later{display:block;width:100%;margin-top:8px;background:none;border:0;color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;padding:6px}
 @keyframes g{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
 </style>
@@ -161,7 +170,7 @@ function render(){
     '</div>' +
 
     '<div class="acts">' +
-      '<a class="act call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
+      '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
       '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>' +
     '</div>' +
 
@@ -219,6 +228,67 @@ function render(){
       sv.textContent = 'Save: ' + selLabel;
     };
   });
+
+  // ── Post-llamada: al tocar Call se marca la hora; cuando Jenny REGRESA
+  // a la página (visibilitychange/pageshow), si pasaron >=8s se le pregunta
+  // cómo salió — un tap guarda Contacted o Not Reached directo.
+  var tsLlamada = 0, promptMostrado = false;
+  document.getElementById('btn-call').addEventListener('click', function(){
+    tsLlamada = Date.now(); promptMostrado = false;
+  });
+
+  function guardarRapido(estado, etiqueta){
+    var cp = document.getElementById('callprompt');
+    if (cp) cp.remove();
+    var url = API + '?api=save&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      '&s=' + estado + '&notes=';
+    var sv = document.getElementById('save');
+    if (sv) { sv.disabled = true; sv.textContent = 'Saving: ' + etiqueta + '...'; }
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+          var err = document.getElementById('err');
+          if (err) err.textContent = d.error || 'Could not save. Try again.'; return; }
+        var pc2 = COLORES[d.status] || '#17233b';
+        app.innerHTML =
+          '<div class="center">' +
+          '<div class="okmark">✓</div>' +
+          '<h2>Update saved</h2>' +
+          '<p><b>' + esc(d.id) + '</b> marked as <span class="pill" style="background:' + pc2 + '">' + esc(d.status) + '</span></p>' +
+          '<button class="btn-back" onclick="cargar()">Back to lead</button>' +
+          '</div>';
+      })
+      .catch(function(){
+        if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+        var err = document.getElementById('err');
+        if (err) err.textContent = 'Connection error. Your update was not saved — try again.';
+      });
+  }
+
+  function mostrarPromptLlamada(){
+    if (promptMostrado || !tsLlamada) return;
+    if (Date.now() - tsLlamada < 8000) return; // canceló el marcado, no preguntar
+    promptMostrado = true; tsLlamada = 0;
+    var div = document.createElement('div');
+    div.className = 'callprompt'; div.id = 'callprompt';
+    div.innerHTML =
+      '<p>How did the call go?</p>' +
+      '<div class="cp-row">' +
+        '<button type="button" class="cp-btn cp-yes" id="cp-yes">✓ Contacted</button>' +
+        '<button type="button" class="cp-btn cp-no" id="cp-no">Not reached</button>' +
+      '</div>' +
+      '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
+    document.body.appendChild(div);
+    document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
+    document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
+    document.getElementById('cp-later').onclick = function(){ div.remove(); };
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') mostrarPromptLlamada();
+  });
+  window.addEventListener('pageshow', mostrarPromptLlamada);
 
   document.getElementById('save').onclick = function(){
     var err = document.getElementById('err');
