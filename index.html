@@ -6,7 +6,10 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v4.1 — lista + buscador + filtros + detalle.
+   LEAD PANEL v4.2 — lista + buscador + filtros + detalle.
+   v4.2: en la vista All, sección "Opened — needs action" entre
+   "New leads" y "Everything else" (leads que Jenny abrió y dejó sin
+   registrar estado recuperan visibilidad).
    v4.1: MODO ADMIN para Rodrigo — entrar con ?admin=1 (código de 6
    dígitos a SU correo, sesión 30 días en localStorage 'jl_admin').
    En modo admin: abrir un lead NO registra apertura ni cambia el
@@ -367,10 +370,32 @@ function filaLead(l){
     '</span></button>';
 }
 
+// v4.2: cuerpo de la lista compartido por pintarLista y repintarFilas.
+// En la vista All sin búsqueda: New leads → Opened (needs action) →
+// Everything else.
+function construirCuerpo(){
+  var visibles = filtrar();
+  if (!visibles.length) {
+    return '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
+  }
+  if (filtroActivo === 'all' && !textoBusqueda) {
+    var nuevos = visibles.filter(function(l){ return l.status === 'New / Transferred'; });
+    var abiertos = visibles.filter(function(l){ return l.status === 'Opened'; });
+    if (nuevos.length || abiertos.length) {
+      var resto = visibles.filter(function(l){
+        return l.status !== 'New / Transferred' && l.status !== 'Opened'; });
+      return (nuevos.length ? '<p class="groupttl">New leads <span class="badge">' + nuevos.length + '</span></p>' +
+                nuevos.map(filaLead).join('') : '') +
+             (abiertos.length ? '<p class="groupttl">Opened — needs action <span class="badge">' + abiertos.length + '</span></p>' +
+                abiertos.map(filaLead).join('') : '') +
+             (resto.length ? '<p class="groupttl">Everything else</p>' + resto.map(filaLead).join('') : '');
+    }
+  }
+  return visibles.map(filaLead).join('');
+}
+
 function pintarLista(scrollTop){
   vistaActual = 'lista';
-  var visibles = filtrar();
-  var nuevos = LISTA.filter(function(l){ return l.status === 'New / Transferred'; });
 
   var chips = FILTROS.map(function(f){
     var n = f[2] ? LISTA.filter(function(l){ return f[2].indexOf(l.status) !== -1; }).length : LISTA.length;
@@ -378,18 +403,7 @@ function pintarLista(scrollTop){
       f[1] + '<span class="n">' + n + '</span></button>';
   }).join('');
 
-  var cuerpo = '';
-  if (!visibles.length) {
-    cuerpo = '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
-  } else if (filtroActivo === 'all' && !textoBusqueda && nuevos.length) {
-    var resto = visibles.filter(function(l){ return l.status !== 'New / Transferred'; });
-    cuerpo =
-      '<p class="groupttl">New leads <span class="badge">' + nuevos.length + '</span></p>' +
-      nuevos.map(filaLead).join('') +
-      (resto.length ? '<p class="groupttl">Everything else</p>' + resto.map(filaLead).join('') : '');
-  } else {
-    cuerpo = visibles.map(filaLead).join('');
-  }
+  var cuerpo = construirCuerpo();
 
   app.innerHTML =
     '<div class="hero flat">' +
@@ -419,21 +433,7 @@ function pintarLista(scrollTop){
 }
 
 function repintarFilas(){
-  var visibles = filtrar();
-  var nuevos = LISTA.filter(function(l){ return l.status === 'New / Transferred'; });
-  var cuerpo = '';
-  if (!visibles.length) {
-    cuerpo = '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
-  } else if (filtroActivo === 'all' && !textoBusqueda && nuevos.length) {
-    var resto = visibles.filter(function(l){ return l.status !== 'New / Transferred'; });
-    cuerpo =
-      '<p class="groupttl">New leads <span class="badge">' + nuevos.length + '</span></p>' +
-      nuevos.map(filaLead).join('') +
-      (resto.length ? '<p class="groupttl">Everything else</p>' + resto.map(filaLead).join('') : '');
-  } else {
-    cuerpo = visibles.map(filaLead).join('');
-  }
-  document.getElementById('rows').innerHTML = cuerpo;
+  document.getElementById('rows').innerHTML = construirCuerpo();
   enlazarFilas();
 }
 
