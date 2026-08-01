@@ -345,7 +345,8 @@ function filaLead(l){
       (cov ? '<span class="lcov" style="display:block">' + esc(cov) + '</span>' : '') +
     '</span>' +
     '<span class="lright">' + pillEstado(l.status, 'lpill') +
-      '<span class="ldate" style="display:block">' + esc(l.sent || '') + '</span>' +
+      '<span class="ldate" style="display:block">' + esc(l.id) +
+        (l.sent ? ' · ' + esc(l.sent) : '') + '</span>' +
     '</span></button>';
 }
 
