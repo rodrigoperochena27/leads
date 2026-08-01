@@ -6,10 +6,14 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v4 — lista de leads + buscador + filtros + detalle.
-   Autenticación por código de 6 dígitos (sesión 30 días por
-   dispositivo). Los links por-lead viejos (?id&t) siguen entrando
-   directo al detalle sin sesión.
+   LEAD PANEL v4.1 — lista + buscador + filtros + detalle.
+   v4.1: MODO ADMIN para Rodrigo — entrar con ?admin=1 (código de 6
+   dígitos a SU correo, sesión 30 días en localStorage 'jl_admin').
+   En modo admin: abrir un lead NO registra apertura ni cambia el
+   estado (fetch con &adm=), y el detalle es SOLO LECTURA (sin
+   botones de estado ni prompt post-llamada). Badge ADMIN visible.
+   Autenticación de Jenny igual que v4; los links por-lead (?id&t)
+   siguen entrando directo al detalle sin sesión.
    ============================================================ */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{--ink:#17233b;--paper:#f2f4f7;--line:#e7eaf0;--sub:#5a6b85;--wa:#1fab55}
@@ -183,8 +187,9 @@ var FILTROS = [
   ['closed','Closed', ['Declined','Dead / Lost']]
 ];
 
-var SES = null;
+var SES = null, ADM = null;
 try { SES = localStorage.getItem('jl_session') || null; } catch (e) {}
+try { ADM = localStorage.getItem('jl_admin') || null; } catch (e) {}
 var LISTA = [];            // cache de api=list
 var filtroActivo = 'all';
 var textoBusqueda = '';
@@ -201,18 +206,23 @@ function pillEstado(st, extra){
 }
 function guardarSesion(s){ SES = s; try { localStorage.setItem('jl_session', s); } catch (e) {} }
 function borrarSesion(){ SES = null; try { localStorage.removeItem('jl_session'); } catch (e) {} }
+function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
+function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); } catch (e) {} }
+function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
 
 // ============================================================
 //  ARRANQUE Y NAVEGACIÓN
 //  ?id&t → detalle directo (links de correo, con o sin sesión).
+//  ?admin=1 → login de ADMIN (código al correo de Rodrigo).
 //  Sin parámetros → lista (pide código si no hay sesión).
 // ============================================================
 function arrancar(){
   var qs = new URLSearchParams(location.search);
   ID = qs.get('id'); T = qs.get('t');
+  if (qs.get('admin') && !ADM) { verOtp(true); return; }
   if (ID && T) { verDetalle(ID, T, false); }
-  else if (SES) { verLista(); }
-  else { verOtp(); }
+  else if (SES || ADM) { verLista(); }
+  else { verOtp(false); }
 }
 window.addEventListener('popstate', arrancar);
 
@@ -227,21 +237,23 @@ function volverALista(){
 // A la lista (con sesión) o a la pantalla de código (sin sesión).
 function irALeads(){
   history.pushState({}, '', location.pathname);
-  if (SES) verLista(); else verOtp();
+  if (SES || ADM) verLista(); else verOtp(false);
 }
 
 // ============================================================
 //  VISTA: CÓDIGO DE ACCESO
 // ============================================================
-function verOtp(){
+// v4.1: esAdmin=true → código al correo de Rodrigo, sesión jl_admin.
+function verOtp(esAdmin){
   vistaActual = 'otp';
+  var who = esAdmin ? '&who=admin' : '';
   app.innerHTML =
-    '<div class="hero flat"><span class="eyebrow">Lead Panel</span>' +
-    '<h1>Welcome, Jenny</h1>' +
-    '<p class="biz">Your leads, in one place.</p></div>' +
+    '<div class="hero flat"><span class="eyebrow">Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
+    '<h1>' + (esAdmin ? 'Admin access' : 'Welcome, Jenny') + '</h1>' +
+    '<p class="biz">' + (esAdmin ? 'Read-only mode. Opening leads will not affect anything.' : 'Your leads, in one place.') + '</p></div>' +
     '<div class="otpwrap"><div class="otpcard">' +
       '<h2>Verify it\'s you</h2>' +
-      '<p>Tap the button and we\'ll email a 6-digit code to your inbox. You\'ll only need to do this once on this device.</p>' +
+      '<p>Tap the button and we\'ll email a 6-digit code to ' + (esAdmin ? 'Rodrigo\'s inbox' : 'your inbox') + '. You\'ll only need to do this once on this device.</p>' +
       '<button class="btn-full" id="btn-send">Email me a code</button>' +
       '<div id="otp-step2" style="display:none">' +
         '<label style="margin-top:18px">Access code</label>' +
@@ -255,7 +267,7 @@ function verOtp(){
   var err = document.getElementById('otp-err');
   function pedirCodigo(btn){
     btn.disabled = true; btn.textContent = 'Sending...'; err.textContent = '';
-    fetch(API + '?api=otp_request').then(function(r){ return r.json(); })
+    fetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Could not send the code.'; btn.disabled = false; btn.textContent = 'Email me a code'; return; }
         document.getElementById('btn-send').style.display = 'none';
@@ -268,7 +280,7 @@ function verOtp(){
   document.getElementById('btn-send').onclick = function(){ pedirCodigo(this); };
   document.getElementById('btn-resend').onclick = function(){
     var b = this; b.disabled = true; b.textContent = 'Sending...';
-    fetch(API + '?api=otp_request').then(function(r){ return r.json(); })
+    fetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         err.textContent = d.ok ? '' : (d.error || 'Could not send the code.');
         b.disabled = false; b.textContent = 'Send a new code';
@@ -280,11 +292,12 @@ function verOtp(){
     var code = document.getElementById('otp-code').value.trim();
     if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
     var b = this; b.disabled = true; b.textContent = 'Checking...'; err.textContent = '';
-    fetch(API + '?api=otp_verify&code=' + encodeURIComponent(code))
+    fetch(API + '?api=otp_verify&code=' + encodeURIComponent(code) + who)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Incorrect code.'; b.disabled = false; b.textContent = 'Enter'; return; }
-        guardarSesion(d.session);
+        if (esAdmin) guardarAdmin(d.session); else guardarSesion(d.session);
+        history.pushState({}, '', location.pathname);
         verLista();
       })
       .catch(function(){ err.textContent = 'Connection error. Try again.'; b.disabled = false; b.textContent = 'Enter'; });
@@ -301,11 +314,15 @@ function verLista(){
 }
 
 function cargarLista(render){
-  if (!SES) { verOtp(); return; }
-  fetch(API + '?api=list&s=' + encodeURIComponent(SES))
+  if (!SES && !ADM) { verOtp(false); return; }
+  var auth = ADM ? '&adm=' + encodeURIComponent(ADM) : '&s=' + encodeURIComponent(SES);
+  fetch(API + '?api=list' + auth)
     .then(function(r){ return r.json(); })
     .then(function(d){
-      if (!d.ok) { borrarSesion(); verOtp(); return; }
+      if (!d.ok) {
+        if (ADM) { borrarAdmin(); verOtp(true); } else { borrarSesion(); verOtp(false); }
+        return;
+      }
       LISTA = d.leads || [];
       if (vistaActual === 'lista') pintarLista(render);
     })
@@ -376,10 +393,13 @@ function pintarLista(scrollTop){
 
   app.innerHTML =
     '<div class="hero flat">' +
-      '<div class="row"><span class="eyebrow">Lead Panel</span>' +
-      '<span class="pill" style="background:rgba(255,255,255,.14)">' + LISTA.length + ' leads</span></div>' +
+      '<div class="row"><span class="eyebrow">Lead Panel' + (ADM ? ' · ADMIN' : '') + '</span>' +
+      '<span class="pill" style="background:' + (ADM ? '#b45309' : 'rgba(255,255,255,.14)') + '">' +
+        (ADM ? 'ADMIN · ' : '') + LISTA.length + ' leads</span></div>' +
       '<h1>Your leads</h1>' +
-      '<p class="biz">Tap a lead to see contact info and update its status.</p>' +
+      '<p class="biz">' + (ADM
+        ? 'Admin mode: read-only, opening leads affects nothing. <a href="javascript:salirAdmin()" style="color:#8fa3c4">Exit admin</a>'
+        : 'Tap a lead to see contact info and update its status.') + '</p>' +
     '</div>' +
     '<div class="wrap" style="padding-bottom:20px">' +
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
@@ -440,7 +460,28 @@ function verDetalle(id, t, desdeLista){
   vistaActual = 'detalle';
   ID = id; T = t;
   app.innerHTML = '<div class="spin"></div>';
-  fetch(API + '?api=lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+  // v4.1: con sesión admin, validar PRIMERO (ping sin efectos). Si la
+  // sesión venció, NO se abre el lead (evita registrar una apertura
+  // falsa) y se pide un código admin nuevo.
+  if (ADM) {
+    fetch(API + '?api=ping&adm=' + encodeURIComponent(ADM))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.admin) { cargarDetalle(); }
+        else { borrarAdmin(); verOtp(true); }
+      })
+      .catch(function(){
+        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+          '<p class="muted">Check your signal and reload the page.</p></div>';
+      });
+    return;
+  }
+  cargarDetalle();
+}
+
+function cargarDetalle(){
+  fetch(API + '?api=lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok) {
@@ -460,6 +501,8 @@ function cargar(){ verDetalle(ID, T, false); }
 
 function render(){
   var d = LEAD, pc = COLORES[d.status] || '#667085';
+  // v4.1: modo admin = solo lectura (el servidor ya confirmó con d.admin)
+  var esAdmin = !!(ADM && d.admin);
   var j = d.jenny || {notes: []};
   var chips = (d.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
 
@@ -493,23 +536,7 @@ function render(){
       '<span class="dot"></span>' + o[1] + (esActual ? '<span class="curtag">CURRENT</span>' : '') + '</button>';
   }).join('');
 
-  app.innerHTML =
-    '<div class="hero">' +
-      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
-      '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') + '</span>' +
-      pillEstado(d.status) + '</div>' +
-      '<h1>' + esc(d.name) + '</h1>' +
-      '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
-      (chips ? '<div class="chips">' + chips + '</div>' : '') +
-    '</div>' +
-
-    '<div class="acts">' +
-      '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
-      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>' +
-    '</div>' +
-
-    '<div class="wrap det">' +
-      notas + actividad + det +
+  var tarjetaEstado = esAdmin ? '' :
       '<div class="card">' +
         '<p class="label">Update status</p>' +
         '<div class="grid" id="sts">' + botones + '</div>' +
@@ -534,13 +561,37 @@ function render(){
         '<label style="margin-top:13px">Notes <span class="opt">optional</span></label>' +
         '<textarea id="notes" placeholder="Anything worth noting"></textarea>' +
         '<p id="err" class="errline"></p>' +
-      '</div>' +
+      '</div>';
+
+  app.innerHTML =
+    '<div class="hero">' +
+      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
+      '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
+        (esAdmin ? ' · ADMIN' : '') + '</span>' +
+      pillEstado(d.status) + '</div>' +
+      '<h1>' + esc(d.name) + '</h1>' +
+      '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '') +
+      (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '') +
     '</div>' +
 
-    '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>';
+    '<div class="acts">' +
+      '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
+      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>' +
+    '</div>' +
+
+    '<div class="wrap det">' +
+      notas + actividad + det +
+      tarjetaEstado +
+    '</div>' +
+
+    (esAdmin ? '' : '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>');
 
   sel = null; selLabel = '';
   document.getElementById('btn-lista').onclick = irALeads;
+
+  // v4.1: en modo admin no hay controles de estado ni prompt post-llamada
+  if (esAdmin) return;
 
   if (j.premium) {
     document.getElementById('sold_premium').value = j.premium;
