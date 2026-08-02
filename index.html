@@ -6,7 +6,12 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v4.2 — lista + buscador + filtros + detalle.
+   LEAD PANEL v4.3 — comisión del agente en % + término de la póliza.
+   v4.3: en el formulario Sold, Agent commission ahora es PORCENTAJE
+   (6-9% típico, validado 0-100) y se agrega el término de la póliza
+   (6 o 12 meses, obligatorio, default 12). El backend v20 calcula
+   renewal (Sold At + término) y expected pay (Sold At + 1 mes).
+   v4.2 (historial): lista + buscador + filtros + detalle.
    v4.2: en la vista All, sección "Opened — needs action" entre
    "New leads" y "Everything else" (leads que Jenny abrió y dejó sin
    registrar estado recuperan visibilidad).
@@ -515,7 +520,8 @@ function render(){
 
   var actRows = [];
   if (j.premium) actRows.push('<div class="drow"><span>Policy premium</span><b>$' + esc(j.premium) + '</b></div>');
-  if (j.agent_comm) actRows.push('<div class="drow"><span>Agent commission</span><b>$' + esc(j.agent_comm) + '</b></div>');
+  if (j.agent_comm) actRows.push('<div class="drow"><span>Agent commission</span><b>' + esc(j.agent_comm) + '%</b></div>');
+  if (j.term) actRows.push('<div class="drow"><span>Policy term</span><b>' + esc(j.term) + ' months</b></div>');
   if (j.loss_reason) actRows.push('<div class="drow"><span>Loss reason</span><b>' + esc(j.loss_reason) + '</b></div>');
   var actNotas = (j.notes && j.notes.length)
     ? '<ul style="margin:6px 0 0;padding-left:18px">' + j.notes.map(function(n){
@@ -543,9 +549,14 @@ function render(){
         '<div id="box-sold" class="ctx">' +
           '<label>Policy premium ($) <span class="req">required</span></label>' +
           '<input id="sold_premium" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">' +
-          '<label>Agent commission ($) <span class="opt">optional</span></label>' +
-          '<input id="sold_comm" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">' +
-          '<p class="hint">Don\'t have it yet? Leave it empty — you can add it later.</p>' +
+          '<label>Agent commission (%) <span class="opt">optional</span></label>' +
+          '<input id="sold_comm" type="number" step="0.01" min="0.01" max="100" inputmode="decimal" placeholder="e.g. 7">' +
+          '<p class="hint">Your commission percentage on this policy (usually 6\u20139%). Don\'t have it yet? Leave it empty \u2014 you can add it later.</p>' +
+          '<label>Policy term <span class="req">required</span></label>' +
+          '<div class="grid" id="term-grid" style="grid-template-columns:1fr 1fr;gap:8px">' +
+            '<button type="button" class="st term-btn" data-term="6" style="--c:#2563eb"><span class="dot"></span>6 months</button>' +
+            '<button type="button" class="st term-btn sel" data-term="12" style="--c:#2563eb"><span class="dot"></span>12 months</button>' +
+          '</div>' +
         '</div>' +
         '<div id="box-quoted" class="ctx">' +
           '<label>Quoted premium ($) <span class="opt">optional</span></label>' +
@@ -599,8 +610,21 @@ function render(){
   }
   if (j.agent_comm) document.getElementById('sold_comm').value = j.agent_comm;
 
+  // v4.3: término de la póliza — default 12, prellenado si ya existe
+  var termSel = (j.term === 6) ? 6 : 12;
+  var termBtns = app.querySelectorAll('.term-btn');
+  termBtns.forEach(function(tb){
+    tb.classList.toggle('sel', parseInt(tb.getAttribute('data-term'), 10) === termSel);
+    tb.onclick = function(ev){
+      ev.stopPropagation();
+      termSel = parseInt(tb.getAttribute('data-term'), 10);
+      termBtns.forEach(function(x){ x.classList.remove('sel'); });
+      tb.classList.add('sel');
+    };
+  });
+
   var boxes = {sold:'box-sold', quoted:'box-quoted', declined:'box-declined'};
-  var btns = app.querySelectorAll('.st');
+  var btns = app.querySelectorAll('#sts .st');
   btns.forEach(function(b){
     b.onclick = function(){
       sel = b.getAttribute('data-s');
@@ -699,10 +723,10 @@ function render(){
       var scRaw = document.getElementById('sold_comm').value;
       var sc = scRaw ? parseFloat(scRaw) : null;
       if (!(sp > 0)) { fallo('Policy premium is required (greater than 0).'); return; }
-      if (sc !== null && !(sc > 0)) { fallo('Agent commission must be greater than 0, or leave it empty.'); return; }
-      if (sc !== null && sc > sp) { fallo('Agent commission cannot be higher than the policy premium.'); return; }
+      if (sc !== null && !(sc > 0 && sc <= 100)) { fallo('Agent commission must be a percentage between 0 and 100 (e.g. 7), or leave it empty.'); return; }
       params.sold_premium = sp;
       if (sc !== null) params.sold_comm = sc;
+      params.sold_term = termSel;
     }
     if (sel === 'quoted') params.quoted_premium = document.getElementById('quoted_premium').value;
     if (sel === 'declined') params.reason = document.getElementById('reason').value;
