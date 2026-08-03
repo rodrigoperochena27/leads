@@ -6,7 +6,9 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v4.3 — comisión del agente en % + término de la póliza.
+   LEAD PANEL v4.3.1 — comisión del agente en % + término de la póliza.
+   v4.3.1: SOLO cambia la var API (motor v21 standalone: nueva URL
+   /exec). Cero cambios funcionales para Jenny.
    v4.3: en el formulario Sold, Agent commission ahora es PORCENTAJE
    (6-9% típico, validado 0-100) y se agrega el término de la póliza
    (6 o 12 meses, obligatorio, default 12). El backend v20 calcula
@@ -168,7 +170,7 @@ textarea{height:62px;resize:vertical}
 
 <script>
 // ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
-var API = 'https://script.google.com/macros/s/AKfycbzM7om8_aOjm-PGDtI3-1FR_falJ6qxtGEspvo00CYtKe1xLur6DFMPRwXi7RfHX3wgtQ/exec';
+var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
 // ===========================================================
 
 var app = document.getElementById('app');
