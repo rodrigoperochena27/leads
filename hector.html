@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hector Lead Panel</title>
+<style>
+/* ============================================================
+   HECTOR LEAD PANEL v1 — vida, inversiones y anualidades.
+   Basado en el panel v4.2 de Jenny (misma arquitectura: lista +
+   buscador + filtros + detalle + OTP + admin), con las diferencias
+   del flujo de Hector:
+   - Estados: Contacted / 1st Appointment (+fecha) / 2nd Appointment
+     (el botón SOLO aparece si ya existe la 1ra cita; el servidor lo
+     valida de nuevo) / Not Reached / Follow-Up / Sold / Declined.
+   - Sold ADITIVO por producto: checkboxes Life / Investment /
+     Annuity, cada uno con su monto. Volver después y agregar otro
+     producto NO toca los ya registrados (el servidor conserva la
+     fecha de venta original de cada producto).
+   - Sin notas de Rodrigo, sin coberturas, sin NAICS/SIC. Muestra
+     GAR, negocio y financials.
+   - API: h_lead / h_save / h_list / h_otp_request / h_otp_verify /
+     h_ping. Sesión en localStorage 'hl_session'. Admin ?admin=1
+     comparte la sesión ADMIN de Rodrigo ('jl_admin': un solo código
+     admin sirve para los dos paneles).
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--ink:#17233b;--paper:#f2f4f7;--line:#e7eaf0;--sub:#5a6b85;--wa:#1fab55}
+html{background:#e9edf2}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#e9edf2;margin:0;padding:0;color:#101828}
+#app{max-width:520px;margin:0 auto;padding:0 0 96px;background:var(--paper);min-height:100vh}
+@media (min-width:700px){
+  #app{margin:28px auto 40px;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px rgba(16,24,40,.14);min-height:calc(100vh - 68px)}
+}
+
+/* ── Header oscuro ── */
+.hero{background:var(--ink);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 20px 54px}
+.hero.flat{padding-bottom:48px}
+.hero .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:1.6px;color:#8fa3c4;text-transform:uppercase}
+.pill{color:#fff;font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;white-space:nowrap}
+.hero h1{margin:0;font-size:27px;font-weight:800;letter-spacing:-.4px;line-height:1.15}
+.hero .biz{margin:6px 0 0;font-size:14.5px;color:#c3cede}
+.hero .chips{margin-top:12px}
+.chip{display:inline-block;background:rgba(255,255,255,.12);color:#e7edf7;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;margin:0 6px 6px 0;border:1px solid rgba(255,255,255,.14)}
+.backlink{display:inline-flex;align-items:center;gap:6px;color:#c3cede;font-size:13.5px;font-weight:700;text-decoration:none;background:none;border:0;cursor:pointer;padding:0;margin:0 0 10px}
+
+/* ── Acciones primarias ── */
+.acts{display:flex;gap:10px;margin:-32px 16px 14px}
+.act{flex:1;display:block;text-align:center;padding:15px;border-radius:14px;text-decoration:none;font-weight:800;font-size:15.5px;box-shadow:0 4px 14px rgba(23,35,59,.18)}
+.act.call{background:#fff;color:var(--ink)}
+.act.wa{background:var(--wa);color:#fff}
+
+.wrap{padding:0 16px;background:var(--paper)}
+.card{background:#fff;border-radius:16px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--line)}
+.label{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;margin:0 0 8px;text-transform:uppercase}
+.card.act-prev{background:#f8fafc}
+.card.appt{background:#eff6ff;border-color:#bfdbfe}
+.card.appt .label{color:#1d4ed8}
+.drow{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:7px 0;border-bottom:1px solid #f2f4f7}
+.drow:last-child{border-bottom:0}
+.drow span{color:var(--sub)}
+.drow b{text-align:right;color:#101828}
+details.card{padding:0;overflow:hidden}
+details.card summary{list-style:none;cursor:pointer;padding:15px 18px;font-size:14px;font-weight:700;color:#344054;display:flex;justify-content:space-between;align-items:center}
+details.card summary::after{content:'+';font-size:18px;color:#98a2b3;font-weight:600}
+details[open].card summary::after{content:'–'}
+details.card .inner{padding:0 18px 14px}
+
+/* ── Grilla de estados ── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.st{position:relative;display:flex;align-items:center;gap:9px;padding:14px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fff;color:#101828;font-size:14.5px;font-weight:700;cursor:pointer;text-align:left}
+.st .dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex:none}
+.st.sel{border-color:var(--c);background:color-mix(in srgb, var(--c) 9%, #fff);box-shadow:0 0 0 1px var(--c)}
+@supports not (background:color-mix(in srgb,#fff 9%,#fff)){.st.sel{background:#f8fafc}}
+.curtag{position:absolute;top:5px;right:8px;font-size:9.5px;font-weight:700;color:#98a2b3;letter-spacing:.6px}
+.ctx{display:none;background:#f8fafc;border:1px solid var(--line);border-radius:13px;padding:13px;margin-top:11px}
+label{display:block;font-size:13px;font-weight:600;color:#344054;margin:9px 0 5px}
+label:first-child{margin-top:0}
+.req{color:#d92d20;font-weight:600;font-size:11px}
+.opt{color:#98a2b3;font-weight:500;font-size:11px}
+.hint{margin:4px 0 0;font-size:12px;color:var(--sub)}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d0d5dd;border-radius:11px;font-size:16px;background:#fff;color:#101828}
+textarea{height:62px;resize:vertical}
+.errline{color:#d92d20;font-size:14px;font-weight:600;min-height:18px;margin:9px 2px 0}
+
+/* ── Productos vendidos (checkboxes) ── */
+.prod{border:1.5px solid var(--line);border-radius:12px;padding:12px;margin-top:9px;background:#fff}
+.prod:first-child{margin-top:0}
+.prod .prow{display:flex;align-items:center;gap:10px;cursor:pointer}
+.prod .prow input[type=checkbox]{width:20px;height:20px;flex:none;accent-color:#14532d}
+.prod .prow b{font-size:14.5px}
+.prod .pdone{font-size:11.5px;color:#12805c;font-weight:700;margin-left:auto;white-space:nowrap}
+.prod .pamt{display:none;margin-top:10px}
+.prod.on{border-color:#14532d;background:#f2f8f4}
+.prod.on .pamt{display:block}
+
+/* ── Barra de guardado fija ── */
+.savebar{position:fixed;bottom:0;left:0;right:0;margin:0 auto;max-width:520px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(242,244,247,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+.save{display:block;width:100%;padding:16px;border:0;border-radius:13px;font-size:16px;font-weight:800;color:#fff;background:var(--ink);cursor:pointer}
+.save:disabled{background:#c6cdd8;cursor:default}
+
+/* ── Éxito / errores ── */
+.center{text-align:center;padding:60px 24px;background:var(--paper)}
+.okmark{width:66px;height:66px;line-height:66px;border-radius:50%;background:#12805c;color:#fff;font-size:34px;font-weight:700;margin:0 auto 14px}
+.center h2{margin:0 0 6px;font-size:22px}
+.center .muted{color:var(--sub);font-size:14.5px;margin:6px 0 0}
+.btn-back{display:inline-block;margin:22px 5px 0;padding:14px 26px;border-radius:13px;background:var(--ink);color:#fff;text-decoration:none;font-weight:800;border:0;font-size:15px;cursor:pointer}
+.btn-back.sec{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.spin{width:36px;height:36px;border:4px solid var(--line);border-top-color:var(--ink);border-radius:50%;margin:80px auto;animation:g .8s linear infinite}
+
+/* ── Prompt post-llamada ── */
+.callprompt{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:12px;right:12px;margin:0 auto;max-width:496px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 8px 30px rgba(16,24,40,.18);z-index:20}
+.callprompt p{margin:0 0 10px;font-size:15px;font-weight:800;color:#101828}
+.callprompt .cp-row{display:flex;gap:9px}
+.cp-btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:14.5px;font-weight:800;cursor:pointer}
+.cp-yes{background:#12805c;color:#fff}
+.cp-no{background:#eef0f4;color:#101828}
+.cp-later{display:block;width:100%;margin-top:8px;background:none;border:0;color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;padding:6px}
+
+/* ── LISTA ── */
+.searchwrap{margin:-26px 16px 12px;position:relative}
+.searchwrap input{padding:15px 16px;border-radius:14px;border:1px solid var(--line);box-shadow:0 4px 14px rgba(23,35,59,.14);font-size:16px}
+.filters{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.fl{flex:none;padding:8px 15px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#344054;font-size:13.5px;font-weight:700;cursor:pointer}
+.fl.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.fl .n{opacity:.65;font-weight:600;margin-left:4px}
+.groupttl{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;margin:16px 2px 8px;display:flex;align-items:center;gap:8px}
+.groupttl .badge{background:#0e7490;color:#fff;border-radius:999px;font-size:11px;padding:2px 9px;letter-spacing:0}
+.lead{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px 15px;margin-bottom:9px;cursor:pointer;font-family:inherit}
+.lead:active{background:#f8fafc}
+.lead .lmain{flex:1;min-width:0}
+.lead .lname{font-size:15.5px;font-weight:800;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lsub{font-size:13px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lcov{font-size:12px;color:#475467;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lright{flex:none;text-align:right}
+.lead .lpill{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.lead .ldate{font-size:11.5px;color:#98a2b3;margin-top:6px;font-weight:600}
+.newdot{width:8px;height:8px;border-radius:50%;background:#0e7490;flex:none;margin-right:-4px}
+.empty{color:var(--sub);font-size:14.5px;text-align:center;padding:34px 10px}
+.refresh-note{color:#98a2b3;font-size:12px;text-align:center;padding:6px 0 18px}
+
+/* ── OTP ── */
+.otpwrap{padding:0 20px 30px;background:var(--paper)}
+.otpcard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 20px;margin-top:-26px;box-shadow:0 4px 18px rgba(23,35,59,.12)}
+.otpcard h2{margin:0 0 6px;font-size:19px}
+.otpcard p{margin:0 0 16px;font-size:14px;color:var(--sub);line-height:1.5}
+.otpcode{letter-spacing:10px;text-align:center;font-size:24px;font-weight:800}
+.btn-full{display:block;width:100%;margin-top:14px;padding:15px;border-radius:13px;border:0;background:var(--ink);color:#fff;font-size:15.5px;font-weight:800;cursor:pointer}
+.btn-full:disabled{background:#c6cdd8}
+.btn-ghost{display:block;width:100%;margin-top:10px;padding:12px;border-radius:13px;border:0;background:none;color:var(--sub);font-size:13.5px;font-weight:700;cursor:pointer}
+/* ── Desktop ── */
+@media (min-width:900px){
+  #app{max-width:940px}
+  .hero{padding-left:36px;padding-right:36px}
+  .hero h1{font-size:32px}
+  .searchwrap{margin-left:36px;margin-right:36px}
+  .filters{padding-left:36px;padding-right:36px}
+  .wrap{padding-left:36px;padding-right:36px}
+  #rows{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:stretch}
+  #rows .groupttl{grid-column:1/-1;margin-bottom:2px}
+  #rows .lead{margin-bottom:0;min-width:0}
+  #rows .empty{grid-column:1/-1}
+  .otpwrap{max-width:620px;margin:0 auto}
+  .wrap.det{max-width:652px;margin:0 auto}
+  .acts{max-width:588px;margin:-32px auto 14px}
+  .savebar{max-width:940px}
+  .savebar .save{max-width:620px;margin:0 auto}
+}
+@keyframes g{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
+</style>
+</head>
+<body>
+<div id="app"><div class="spin"></div></div>
+
+<script>
+// ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
+var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
+// ===========================================================
+
+var app = document.getElementById('app');
+var COLORES = {'New / Transferred':'#667085','Opened':'#0e7490','Contacted':'#12805c',
+  'Not Reached':'#667085','Follow-Up':'#dc6803','1st Appointment':'#1d4ed8',
+  '2nd Appointment':'#7c3aed','Sold':'#14532d','Declined':'#d92d20'};
+var ETIQ = {'New / Transferred':'New','1st Appointment':'1st Appt','2nd Appointment':'2nd Appt'};
+// OPCIONES base: [id, etiqueta, color, estado del Sheet]. La de appt2 se
+// agrega dinámicamente SOLO si ya existe la 1ra cita (render()).
+var OPCIONES_BASE = [
+  ['contacted','Contacted','#12805c','Contacted'],
+  ['appt1','1st Appointment','#1d4ed8','1st Appointment'],
+  ['not_reached','Not Reached','#667085','Not Reached'],
+  ['followup','Follow-Up','#dc6803','Follow-Up'],
+  ['sold','Sold','#14532d','Sold'],
+  ['declined','Declined','#d92d20','Declined']
+];
+var OPCION_APPT2 = ['appt2','2nd Appointment','#7c3aed','2nd Appointment'];
+var RAZONES = ['Not interested','Could not reach','Not qualified',
+  'Went with another advisor','Other'];
+var FILTROS = [
+  ['all','All', null],
+  ['new','New', ['New / Transferred']],
+  ['opened','Opened', ['Opened']],
+  ['working','In progress', ['Contacted','Not Reached','Follow-Up']],
+  ['appts','Appointments', ['1st Appointment','2nd Appointment']],
+  ['sold','Sold', ['Sold']],
+  ['closed','Closed', ['Declined']]
+];
+
+// Sesión de Hector: 'hl_session'. Admin: 'jl_admin' (COMPARTIDA con el
+// panel de Jenny — un solo código admin de Rodrigo sirve para ambos).
+var SES = null, ADM = null;
+try { SES = localStorage.getItem('hl_session') || null; } catch (e) {}
+try { ADM = localStorage.getItem('jl_admin') || null; } catch (e) {}
+var LISTA = [];
+var filtroActivo = 'all';
+var textoBusqueda = '';
+var vistaActual = '';
+var LEAD = null, ID = null, T = null;
+var sel = null, selLabel = '';
+var pollTimer = null;
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function pillEstado(st, extra){
+  return '<span class="' + (extra || 'pill') + '" style="background:' + (COLORES[st] || '#667085') + '">' +
+    esc(ETIQ[st] || st) + '</span>';
+}
+function guardarSesion(s){ SES = s; try { localStorage.setItem('hl_session', s); } catch (e) {} }
+function borrarSesion(){ SES = null; try { localStorage.removeItem('hl_session'); } catch (e) {} }
+function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
+function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); } catch (e) {} }
+function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
+
+// ============================================================
+//  ARRANQUE Y NAVEGACIÓN
+// ============================================================
+function arrancar(){
+  var qs = new URLSearchParams(location.search);
+  ID = qs.get('id'); T = qs.get('t');
+  if (qs.get('admin') && !ADM) { verOtp(true); return; }
+  if (ID && T) { verDetalle(ID, T, false); }
+  else if (SES || ADM) { verLista(); }
+  else { verOtp(false); }
+}
+window.addEventListener('popstate', arrancar);
+
+function irADetalle(id, t){
+  history.pushState({}, '', location.pathname + '?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t));
+  verDetalle(id, t, true);
+}
+function volverALista(){
+  history.pushState({}, '', location.pathname);
+  verLista();
+}
+function irALeads(){
+  history.pushState({}, '', location.pathname);
+  if (SES || ADM) verLista(); else verOtp(false);
+}
+
+// ============================================================
+//  VISTA: CÓDIGO DE ACCESO
+// ============================================================
+function verOtp(esAdmin){
+  vistaActual = 'otp';
+  var who = esAdmin ? '&who=admin' : '';
+  app.innerHTML =
+    '<div class="hero flat"><span class="eyebrow">Hector Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
+    '<h1>' + (esAdmin ? 'Admin access' : 'Welcome, Hector') + '</h1>' +
+    '<p class="biz">' + (esAdmin ? 'Read-only mode. Opening leads will not affect anything.' : 'Your leads, in one place.') + '</p></div>' +
+    '<div class="otpwrap"><div class="otpcard">' +
+      '<h2>Verify it\'s you</h2>' +
+      '<p>Tap the button and we\'ll email a 6-digit code to ' + (esAdmin ? 'Rodrigo\'s inbox' : 'your inbox') + '. You\'ll only need to do this once on this device.</p>' +
+      '<button class="btn-full" id="btn-send">Email me a code</button>' +
+      '<div id="otp-step2" style="display:none">' +
+        '<label style="margin-top:18px">Access code</label>' +
+        '<input id="otp-code" class="otpcode" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">' +
+        '<button class="btn-full" id="btn-verify">Enter</button>' +
+        '<button class="btn-ghost" id="btn-resend">Send a new code</button>' +
+      '</div>' +
+      '<p id="otp-err" class="errline"></p>' +
+    '</div></div>';
+
+  var err = document.getElementById('otp-err');
+  function pedirCodigo(btn){
+    btn.disabled = true; btn.textContent = 'Sending...'; err.textContent = '';
+    fetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { err.textContent = d.error || 'Could not send the code.'; btn.disabled = false; btn.textContent = 'Email me a code'; return; }
+        document.getElementById('btn-send').style.display = 'none';
+        document.getElementById('otp-step2').style.display = 'block';
+        document.getElementById('otp-code').focus();
+        btn.disabled = false;
+      })
+      .catch(function(){ err.textContent = 'Connection error. Try again.'; btn.disabled = false; btn.textContent = 'Email me a code'; });
+  }
+  document.getElementById('btn-send').onclick = function(){ pedirCodigo(this); };
+  document.getElementById('btn-resend').onclick = function(){
+    var b = this; b.disabled = true; b.textContent = 'Sending...';
+    fetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
+      .then(function(d){
+        err.textContent = d.ok ? '' : (d.error || 'Could not send the code.');
+        b.disabled = false; b.textContent = 'Send a new code';
+        if (d.ok) document.getElementById('otp-code').focus();
+      })
+      .catch(function(){ err.textContent = 'Connection error.'; b.disabled = false; b.textContent = 'Send a new code'; });
+  };
+  document.getElementById('btn-verify').onclick = function(){
+    var code = document.getElementById('otp-code').value.trim();
+    if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
+    var b = this; b.disabled = true; b.textContent = 'Checking...'; err.textContent = '';
+    fetch(API + '?api=h_otp_verify&code=' + encodeURIComponent(code) + who)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { err.textContent = d.error || 'Incorrect code.'; b.disabled = false; b.textContent = 'Enter'; return; }
+        if (esAdmin) guardarAdmin(d.session); else guardarSesion(d.session);
+        history.pushState({}, '', location.pathname);
+        verLista();
+      })
+      .catch(function(){ err.textContent = 'Connection error. Try again.'; b.disabled = false; b.textContent = 'Enter'; });
+  };
+}
+
+// ============================================================
+//  VISTA: LISTA DE LEADS
+// ============================================================
+function verLista(){
+  vistaActual = 'lista';
+  app.innerHTML = '<div class="spin"></div>';
+  cargarLista(true);
+}
+
+function cargarLista(render){
+  if (!SES && !ADM) { verOtp(false); return; }
+  var auth = ADM ? '&adm=' + encodeURIComponent(ADM) : '&s=' + encodeURIComponent(SES);
+  fetch(API + '?api=h_list' + auth)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) {
+        if (ADM) { borrarAdmin(); verOtp(true); } else { borrarSesion(); verOtp(false); }
+        return;
+      }
+      LISTA = d.leads || [];
+      if (vistaActual === 'lista') pintarLista(render);
+    })
+    .catch(function(){
+      if (render && vistaActual === 'lista') {
+        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+          '<p class="muted">Check your signal.</p>' +
+          '<button class="btn-back" onclick="verLista()">Retry</button></div>';
+      }
+    });
+}
+
+function filtrar(){
+  var f = null;
+  for (var i = 0; i < FILTROS.length; i++) if (FILTROS[i][0] === filtroActivo) f = FILTROS[i];
+  var q = textoBusqueda.trim().toLowerCase();
+  var qDig = q.replace(/\D/g, '');
+  return LISTA.filter(function(l){
+    if (f && f[2] && f[2].indexOf(l.status) === -1) return false;
+    if (!q) return true;
+    var blob = (l.id + ' ' + l.name + ' ' + l.business + ' ' + l.type + ' ' +
+      l.state + ' ' + l.status + ' ' + (l.gar || '')).toLowerCase();
+    if (blob.indexOf(q) !== -1) return true;
+    if (qDig.length >= 3 && l.phone10 && l.phone10.indexOf(qDig) !== -1) return true;
+    return false;
+  });
+}
+
+function filaLead(l){
+  var esNuevo = l.status === 'New / Transferred';
+  return '<button type="button" class="lead" data-id="' + esc(l.id) + '" data-t="' + esc(l.t) + '">' +
+    (esNuevo ? '<span class="newdot"></span>' : '') +
+    '<span class="lmain">' +
+      '<span class="lname" style="display:block">' + esc(l.name || '-') + '</span>' +
+      '<span class="lsub" style="display:block">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</span>' +
+      (l.gar ? '<span class="lcov" style="display:block">Revenue ' + esc(l.gar) + (l.state ? ' · ' + esc(l.state) : '') + '</span>' : '') +
+    '</span>' +
+    '<span class="lright">' + pillEstado(l.status, 'lpill') +
+      '<span class="ldate" style="display:block">' + esc(l.id) +
+        (l.sent ? ' · ' + esc(l.sent) : '') + '</span>' +
+    '</span></button>';
+}
+
+function construirCuerpo(){
+  var visibles = filtrar();
+  if (!visibles.length) {
+    return '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
+  }
+  if (filtroActivo === 'all' && !textoBusqueda) {
+    var nuevos = visibles.filter(function(l){ return l.status === 'New / Transferred'; });
+    var abiertos = visibles.filter(function(l){ return l.status === 'Opened'; });
+    if (nuevos.length || abiertos.length) {
+      var resto = visibles.filter(function(l){
+        return l.status !== 'New / Transferred' && l.status !== 'Opened'; });
+      return (nuevos.length ? '<p class="groupttl">New leads <span class="badge">' + nuevos.length + '</span></p>' +
+                nuevos.map(filaLead).join('') : '') +
+             (abiertos.length ? '<p class="groupttl">Opened — needs action <span class="badge">' + abiertos.length + '</span></p>' +
+                abiertos.map(filaLead).join('') : '') +
+             (resto.length ? '<p class="groupttl">Everything else</p>' + resto.map(filaLead).join('') : '');
+    }
+  }
+  return visibles.map(filaLead).join('');
+}
+
+function pintarLista(scrollTop){
+  vistaActual = 'lista';
+
+  var chips = FILTROS.map(function(f){
+    var n = f[2] ? LISTA.filter(function(l){ return f[2].indexOf(l.status) !== -1; }).length : LISTA.length;
+    return '<button type="button" class="fl' + (filtroActivo === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' +
+      f[1] + '<span class="n">' + n + '</span></button>';
+  }).join('');
+
+  var cuerpo = construirCuerpo();
+
+  app.innerHTML =
+    '<div class="hero flat">' +
+      '<div class="row"><span class="eyebrow">Hector Lead Panel' + (ADM ? ' · ADMIN' : '') + '</span>' +
+      '<span class="pill" style="background:' + (ADM ? '#b45309' : 'rgba(255,255,255,.14)') + '">' +
+        (ADM ? 'ADMIN · ' : '') + LISTA.length + ' leads</span></div>' +
+      '<h1>Your leads</h1>' +
+      '<p class="biz">' + (ADM
+        ? 'Admin mode: read-only, opening leads affects nothing. <a href="javascript:salirAdmin()" style="color:#8fa3c4">Exit admin</a>'
+        : 'Tap a lead to see contact info and update its status.') + '</p>' +
+    '</div>' +
+    '<div class="wrap" style="padding-bottom:20px">' +
+      '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
+      '<div class="filters">' + chips + '</div>' +
+      '<div id="rows">' + cuerpo + '</div>' +
+      '<p class="refresh-note">Updates automatically every minute.</p>' +
+    '</div>';
+
+  if (scrollTop) window.scrollTo(0, 0);
+
+  var q = document.getElementById('q');
+  q.oninput = function(){ textoBusqueda = q.value; repintarFilas(); };
+  app.querySelectorAll('.fl').forEach(function(b){
+    b.onclick = function(){ filtroActivo = b.getAttribute('data-f'); pintarLista(false); };
+  });
+  enlazarFilas();
+}
+
+function repintarFilas(){
+  document.getElementById('rows').innerHTML = construirCuerpo();
+  enlazarFilas();
+}
+
+function enlazarFilas(){
+  app.querySelectorAll('.lead').forEach(function(b){
+    b.onclick = function(){ irADetalle(b.getAttribute('data-id'), b.getAttribute('data-t')); };
+  });
+}
+
+function tickRefresco(){
+  if (vistaActual === 'lista' && SES && document.visibilityState === 'visible') cargarLista(false);
+}
+pollTimer = setInterval(tickRefresco, 60000);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') tickRefresco();
+});
+
+// ============================================================
+//  VISTA: DETALLE DEL LEAD
+// ============================================================
+function verDetalle(id, t, desdeLista){
+  vistaActual = 'detalle';
+  ID = id; T = t;
+  app.innerHTML = '<div class="spin"></div>';
+  if (ADM) {
+    fetch(API + '?api=h_ping&adm=' + encodeURIComponent(ADM))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (d && d.admin) { cargarDetalle(); }
+        else { borrarAdmin(); verOtp(true); }
+      })
+      .catch(function(){
+        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+          '<p class="muted">Check your signal and reload the page.</p></div>';
+      });
+    return;
+  }
+  cargarDetalle();
+}
+
+function cargarDetalle(){
+  fetch(API + '?api=h_lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) {
+        app.innerHTML = '<div class="center"><h2>Invalid link</h2><p class="muted">' +
+          esc(d.error || 'This link does not match any lead.') + '</p>' +
+          '<button class="btn-back" onclick="irALeads()">All leads</button></div>';
+        return;
+      }
+      LEAD = d; render();
+    })
+    .catch(function(){
+      app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+        '<p class="muted">Check your signal and reload the page.</p></div>';
+    });
+}
+function cargar(){ verDetalle(ID, T, false); }
+
+function render(){
+  var d = LEAD, pc = COLORES[d.status] || '#667085';
+  var esAdmin = !!(ADM && d.admin);
+  var h = d.hector || {notes: []};
+
+  var chips = '';
+  if (d.gar) chips += '<span class="chip">Revenue ' + esc(d.gar) + '</span>';
+  if (d.state) chips += '<span class="chip">' + esc(d.state) + '</span>';
+
+  // Citas registradas
+  var apptRows = [];
+  if (h.appt1) apptRows.push('<div class="drow"><span>1st appointment</span><b>' + esc(h.appt1) + '</b></div>');
+  if (h.appt2) apptRows.push('<div class="drow"><span>2nd appointment</span><b>' + esc(h.appt2) + '</b></div>');
+  var citas = apptRows.length
+    ? '<div class="card appt"><p class="label">Appointments</p>' + apptRows.join('') + '</div>' : '';
+
+  // Actividad: ventas registradas + razón + notas
+  var actRows = [];
+  if (h.life_prem) actRows.push('<div class="drow"><span>Life insurance</span><b>$' + esc(h.life_prem) + '/mo' +
+    (h.life_sold ? ' · sold ' + esc(h.life_sold) : '') + '</b></div>');
+  if (h.inv_amount) actRows.push('<div class="drow"><span>Investment</span><b>$' + esc(h.inv_amount) +
+    (h.inv_sold ? ' · sold ' + esc(h.inv_sold) : '') + '</b></div>');
+  if (h.ann_amount) actRows.push('<div class="drow"><span>Annuity</span><b>$' + esc(h.ann_amount) +
+    (h.ann_sold ? ' · sold ' + esc(h.ann_sold) : '') + '</b></div>');
+  if (h.loss_reason) actRows.push('<div class="drow"><span>Loss reason</span><b>' + esc(h.loss_reason) + '</b></div>');
+  var actNotas = (h.notes && h.notes.length)
+    ? '<ul style="margin:6px 0 0;padding-left:18px">' + h.notes.map(function(n){
+        return '<li style="font-size:14px;color:#344054;margin-bottom:4px">' + esc(n) + '</li>'; }).join('') + '</ul>' : '';
+  var actividad = (actRows.length || actNotas)
+    ? '<div class="card act-prev"><p class="label">Your activity</p>' + actRows.join('') + actNotas + '</div>' : '';
+
+  var det = '';
+  if (d.details && d.details.length) {
+    det = '<details class="card"><summary>Full details</summary><div class="inner">' +
+      d.details.map(function(x){ return '<div class="drow"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>'; }).join('') +
+      '</div></details>';
+  }
+
+  // La opción de 2da cita SOLO existe si ya hay 1ra cita registrada
+  // (el servidor lo vuelve a validar en h_save).
+  var OPCIONES = OPCIONES_BASE.slice();
+  if (h.appt1) OPCIONES.splice(2, 0, OPCION_APPT2);
+
+  var botones = OPCIONES.map(function(o){
+    var esActual = o[3] === d.status;
+    return '<button type="button" class="st" data-s="' + o[0] + '" data-l="' + o[1] + '" style="--c:' + o[2] + '">' +
+      '<span class="dot"></span>' + o[1] + (esActual ? '<span class="curtag">CURRENT</span>' : '') + '</button>';
+  }).join('');
+
+  var prodHtml = function(pid, titulo, sub, monto, vendido){
+    return '<div class="prod" id="prod-' + pid + '">' +
+      '<label class="prow" style="margin:0"><input type="checkbox" id="chk-' + pid + '"' + (monto ? ' checked' : '') + '>' +
+      '<b>' + titulo + '</b>' + (vendido ? '<span class="pdone">Recorded ' + esc(vendido) + '</span>' : '') + '</label>' +
+      '<div class="pamt">' +
+        '<label>' + sub + ' <span class="req">required</span></label>' +
+        '<input id="amt-' + pid + '" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00"' +
+          (monto ? ' value="' + esc(monto) + '"' : '') + '>' +
+        (vendido ? '<p class="hint">Already recorded — editing updates the amount, the sale date stays.</p>' : '') +
+      '</div></div>';
+  };
+
+  var tarjetaEstado = esAdmin ? '' :
+      '<div class="card">' +
+        '<p class="label">Update status</p>' +
+        '<div class="grid" id="sts">' + botones + '</div>' +
+        '<div id="box-appt1" class="ctx">' +
+          '<label>1st appointment date <span class="req">required</span></label>' +
+          '<input id="appt1_date" type="date">' +
+        '</div>' +
+        '<div id="box-appt2" class="ctx">' +
+          '<label>2nd appointment date <span class="req">required</span></label>' +
+          '<input id="appt2_date" type="date">' +
+        '</div>' +
+        '<div id="box-sold" class="ctx">' +
+          '<p class="hint" style="margin:0 0 9px">Check every product you sold. You can come back later and add another one.</p>' +
+          prodHtml('life', 'Life insurance', 'Monthly premium ($)', h.life_prem, h.life_sold) +
+          prodHtml('inv', 'Investment', 'Investment amount ($)', h.inv_amount, h.inv_sold) +
+          prodHtml('ann', 'Annuity', 'Annuity amount ($)', h.ann_amount, h.ann_sold) +
+        '</div>' +
+        '<div id="box-declined" class="ctx">' +
+          '<label>Reason</label><select id="reason">' +
+          RAZONES.map(function(r){ return '<option>' + r + '</option>'; }).join('') +
+          '</select>' +
+        '</div>' +
+        '<label style="margin-top:13px">Notes <span class="opt">optional</span></label>' +
+        '<textarea id="notes" placeholder="Anything worth noting"></textarea>' +
+        '<p id="err" class="errline"></p>' +
+      '</div>';
+
+  app.innerHTML =
+    '<div class="hero">' +
+      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
+      '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
+        (esAdmin ? ' · ADMIN' : '') + '</span>' +
+      pillEstado(d.status) + '</div>' +
+      '<h1>' + esc(d.name) + '</h1>' +
+      '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '') +
+      (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '') +
+    '</div>' +
+
+    '<div class="acts">' +
+      '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
+      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>' +
+    '</div>' +
+
+    '<div class="wrap det">' +
+      citas + actividad + det +
+      tarjetaEstado +
+    '</div>' +
+
+    (esAdmin ? '' : '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>');
+
+  sel = null; selLabel = '';
+  document.getElementById('btn-lista').onclick = irALeads;
+
+  if (esAdmin) return;
+
+  // Checkboxes de productos: mostrar/ocultar el campo de monto
+  ['life','inv','ann'].forEach(function(pid){
+    var chk = document.getElementById('chk-' + pid);
+    var card = document.getElementById('prod-' + pid);
+    var sync = function(){ card.classList.toggle('on', chk.checked); };
+    chk.onchange = sync; sync();
+  });
+
+  var boxes = {appt1:'box-appt1', appt2:'box-appt2', sold:'box-sold', declined:'box-declined'};
+  var btns = app.querySelectorAll('.st');
+  btns.forEach(function(b){
+    b.onclick = function(){
+      sel = b.getAttribute('data-s');
+      selLabel = b.getAttribute('data-l');
+      btns.forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel');
+      Object.keys(boxes).forEach(function(k){ document.getElementById(boxes[k]).style.display = 'none'; });
+      if (boxes[sel]) document.getElementById(boxes[sel]).style.display = 'block';
+      var sv = document.getElementById('save');
+      sv.disabled = false;
+      sv.textContent = 'Save: ' + selLabel;
+    };
+  });
+
+  // ── Post-llamada: al volver de marcar, un tap guarda el resultado ──
+  var tsLlamada = 0, promptMostrado = false;
+  document.getElementById('btn-call').addEventListener('click', function(){
+    tsLlamada = Date.now(); promptMostrado = false;
+  });
+
+  function pantallaExito(dd){
+    app.innerHTML =
+      '<div class="center">' +
+      '<div class="okmark">✓</div>' +
+      '<h2>Update saved</h2>' +
+      '<p><b>' + esc(dd.id) + '</b> marked as ' + pillEstado(dd.status) + '</p>' +
+      (dd.detail ? '<p class="muted">' + esc(dd.detail) + '</p>' : '') +
+      '<div><button class="btn-back" onclick="cargar()">Back to lead</button>' +
+      '<button class="btn-back sec" onclick="irALeads()">All leads</button></div>' +
+      '</div>';
+  }
+
+  function guardarRapido(estado, etiqueta){
+    var cp = document.getElementById('callprompt');
+    if (cp) cp.remove();
+    var url = API + '?api=h_save&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      '&s=' + estado + '&notes=';
+    var sv = document.getElementById('save');
+    if (sv) { sv.disabled = true; sv.textContent = 'Saving: ' + etiqueta + '...'; }
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+          var err = document.getElementById('err');
+          if (err) err.textContent = d.error || 'Could not save. Try again.'; return; }
+        pantallaExito(d);
+      })
+      .catch(function(){
+        if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+        var err = document.getElementById('err');
+        if (err) err.textContent = 'Connection error. Your update was not saved — try again.';
+      });
+  }
+
+  function mostrarPromptLlamada(){
+    if (vistaActual !== 'detalle') return;
+    if (promptMostrado || !tsLlamada) return;
+    if (Date.now() - tsLlamada < 8000) return;
+    promptMostrado = true; tsLlamada = 0;
+    var div = document.createElement('div');
+    div.className = 'callprompt'; div.id = 'callprompt';
+    div.innerHTML =
+      '<p>How did the call go?</p>' +
+      '<div class="cp-row">' +
+        '<button type="button" class="cp-btn cp-yes" id="cp-yes">✓ Contacted</button>' +
+        '<button type="button" class="cp-btn cp-no" id="cp-no">Not reached</button>' +
+      '</div>' +
+      '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
+    document.body.appendChild(div);
+    document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
+    document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
+    document.getElementById('cp-later').onclick = function(){ div.remove(); };
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') mostrarPromptLlamada();
+  });
+  window.addEventListener('pageshow', mostrarPromptLlamada);
+
+  document.getElementById('save').onclick = function(){
+    var err = document.getElementById('err');
+    var sv = document.getElementById('save');
+    err.textContent = '';
+
+    function fallo(msg){
+      err.textContent = msg;
+      err.scrollIntoView({block:'center'});
+      sv.disabled = false;
+      sv.textContent = 'Save: ' + selLabel;
+    }
+
+    if (!sel) { err.textContent = 'Choose a status first.'; return; }
+    var params = {api:'h_save', id:ID, t:T, s:sel, notes:document.getElementById('notes').value};
+
+    if (sel === 'appt1') {
+      var f1 = document.getElementById('appt1_date').value;
+      if (!f1) { fallo('Pick the 1st appointment date.'); return; }
+      params.appt_date = f1;
+    }
+    if (sel === 'appt2') {
+      var f2 = document.getElementById('appt2_date').value;
+      if (!f2) { fallo('Pick the 2nd appointment date.'); return; }
+      params.appt_date = f2;
+    }
+    if (sel === 'sold') {
+      var quiere = {life: document.getElementById('chk-life').checked,
+                    inv: document.getElementById('chk-inv').checked,
+                    ann: document.getElementById('chk-ann').checked};
+      if (!quiere.life && !quiere.inv && !quiere.ann) {
+        fallo('Check at least one product you sold.'); return;
+      }
+      if (quiere.life) {
+        var lp = parseFloat(document.getElementById('amt-life').value);
+        if (!(lp > 0)) { fallo('Enter the Life monthly premium (greater than 0).'); return; }
+        params.life_prem = lp;
+      }
+      if (quiere.inv) {
+        var ia = parseFloat(document.getElementById('amt-inv').value);
+        if (!(ia > 0)) { fallo('Enter the Investment amount (greater than 0).'); return; }
+        params.inv_amount = ia;
+      }
+      if (quiere.ann) {
+        var aa = parseFloat(document.getElementById('amt-ann').value);
+        if (!(aa > 0)) { fallo('Enter the Annuity amount (greater than 0).'); return; }
+        params.ann_amount = aa;
+      }
+    }
+    if (sel === 'declined') params.reason = document.getElementById('reason').value;
+
+    sv.disabled = true; sv.textContent = 'Saving...';
+    var url = API + '?' + Object.keys(params).map(function(k){
+      return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { fallo(d.error || 'Could not save. Try again.'); return; }
+        pantallaExito(d);
+      })
+      .catch(function(){ fallo('Connection error. Your changes were not saved — try again.'); });
+  };
+}
+
+arrancar();
+</script>
+</body>
+</html>
