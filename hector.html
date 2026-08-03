@@ -6,7 +6,15 @@
 <title>Hector Lead Panel</title>
 <style>
 /* ============================================================
-   HECTOR LEAD PANEL v1 — vida, inversiones y anualidades.
+   HECTOR LEAD PANEL v1.1 — vida, inversiones y anualidades.
+   v1.1 (auditoría pre-arranque):
+   - Montos con separador de miles en "Your activity" y "Recorded".
+   - Si el lead está en Sold y se elige otro estado, se pide
+     confirmación (las ventas registradas se conservan igual).
+   - El prompt post-llamada NO aparece en leads Sold/Declined (evita
+     degradar el estado por un tap rápido).
+   - La lista también se auto-refresca en modo ADMIN.
+   v1:
    Basado en el panel v4.2 de Jenny (misma arquitectura: lista +
    buscador + filtros + detalle + OTP + admin), con las diferencias
    del flujo de Hector:
@@ -177,7 +185,7 @@ textarea{height:62px;resize:vertical}
 
 <script>
 // ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
-var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
+var API = 'https://script.google.com/macros/s/REEMPLAZA_CON_TU_NUEVA_URL_EXEC/exec';
 // ===========================================================
 
 var app = document.getElementById('app');
@@ -223,6 +231,13 @@ var pollTimer = null;
 
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+// v1.1: montos con separador de miles (los inputs siguen recibiendo el
+// número crudo).
+function fmtNum(n){
+  var x = Number(n);
+  if (!isFinite(x)) return esc(n);
+  return x.toLocaleString('en-US', {maximumFractionDigits: 2});
+}
 function pillEstado(st, extra){
   return '<span class="' + (extra || 'pill') + '" style="background:' + (COLORES[st] || '#667085') + '">' +
     esc(ETIQ[st] || st) + '</span>';
@@ -455,7 +470,7 @@ function enlazarFilas(){
 }
 
 function tickRefresco(){
-  if (vistaActual === 'lista' && SES && document.visibilityState === 'visible') cargarLista(false);
+  if (vistaActual === 'lista' && (SES || ADM) && document.visibilityState === 'visible') cargarLista(false);
 }
 pollTimer = setInterval(tickRefresco, 60000);
 document.addEventListener('visibilitychange', function(){
@@ -523,11 +538,11 @@ function render(){
 
   // Actividad: ventas registradas + razón + notas
   var actRows = [];
-  if (h.life_prem) actRows.push('<div class="drow"><span>Life insurance</span><b>$' + esc(h.life_prem) + '/mo' +
+  if (h.life_prem) actRows.push('<div class="drow"><span>Life insurance</span><b>$' + fmtNum(h.life_prem) + '/mo' +
     (h.life_sold ? ' · sold ' + esc(h.life_sold) : '') + '</b></div>');
-  if (h.inv_amount) actRows.push('<div class="drow"><span>Investment</span><b>$' + esc(h.inv_amount) +
+  if (h.inv_amount) actRows.push('<div class="drow"><span>Investment</span><b>$' + fmtNum(h.inv_amount) +
     (h.inv_sold ? ' · sold ' + esc(h.inv_sold) : '') + '</b></div>');
-  if (h.ann_amount) actRows.push('<div class="drow"><span>Annuity</span><b>$' + esc(h.ann_amount) +
+  if (h.ann_amount) actRows.push('<div class="drow"><span>Annuity</span><b>$' + fmtNum(h.ann_amount) +
     (h.ann_sold ? ' · sold ' + esc(h.ann_sold) : '') + '</b></div>');
   if (h.loss_reason) actRows.push('<div class="drow"><span>Loss reason</span><b>' + esc(h.loss_reason) + '</b></div>');
   var actNotas = (h.notes && h.notes.length)
@@ -689,6 +704,9 @@ function render(){
 
   function mostrarPromptLlamada(){
     if (vistaActual !== 'detalle') return;
+    // v1.1: en Sold/Declined un tap rápido degradaría el estado —
+    // ahí Hector actualiza manualmente si hace falta.
+    if (LEAD && (LEAD.status === 'Sold' || LEAD.status === 'Declined')) return;
     if (promptMostrado || !tsLlamada) return;
     if (Date.now() - tsLlamada < 8000) return;
     promptMostrado = true; tsLlamada = 0;
@@ -725,6 +743,13 @@ function render(){
     }
 
     if (!sel) { err.textContent = 'Choose a status first.'; return; }
+    // v1.1: salir de Sold requiere confirmación (las ventas registradas
+    // y las comisiones se conservan; solo cambia el estado visible).
+    if (LEAD && LEAD.status === 'Sold' && sel !== 'sold') {
+      if (!window.confirm('This lead is marked as Sold. Changing the status will NOT remove the recorded sales — continue?')) {
+        return;
+      }
+    }
     var params = {api:'h_save', id:ID, t:T, s:sel, notes:document.getElementById('notes').value};
 
     if (sel === 'appt1') {
