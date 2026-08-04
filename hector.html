@@ -3,9 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>Hector Lead Panel</title>
 <style>
 /* ============================================================
+   HECTOR LEAD PANEL v1.2 — RENDIMIENTO (requiere motor v21.5).
+   v1.2: percepción de instantaneidad, sin cambios de flujo:
+   - La lista se pinta AL INSTANTE desde la última copia conocida
+     (localStorage 'hl_lista_v1') y se refresca en segundo plano.
+     La copia se borra al cerrar sesión o al vencer la sesión.
+   - Al tocar un lead, el encabezado (nombre, negocio, estado,
+     Call/WhatsApp) se pinta de inmediato con los datos de la lista;
+     el detalle completo llega detrás. Los links de correo (?id&t
+     sin lista) conservan el spinner de siempre.
+   - Modo admin: se elimina el ping previo — el motor v21.5 responde
+     admin_expired sin registrar apertura si la sesión venció.
+   - preconnect a script.google.com / script.googleusercontent.com.
+   ------------------------------------------------------------
    HECTOR LEAD PANEL v1.1 — vida, inversiones y anualidades.
    v1.1 (auditoría pre-arranque):
    - Montos con separador de miles en "Your activity" y "Recorded".
@@ -243,9 +258,9 @@ function pillEstado(st, extra){
     esc(ETIQ[st] || st) + '</span>';
 }
 function guardarSesion(s){ SES = s; try { localStorage.setItem('hl_session', s); } catch (e) {} }
-function borrarSesion(){ SES = null; try { localStorage.removeItem('hl_session'); } catch (e) {} }
+function borrarSesion(){ SES = null; try { localStorage.removeItem('hl_session'); localStorage.removeItem('hl_lista_v1'); } catch (e) {} }
 function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
-function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); } catch (e) {} }
+function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); localStorage.removeItem('hl_lista_v1'); } catch (e) {} }
 function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
 
 // ============================================================
@@ -342,8 +357,14 @@ function verOtp(esAdmin){
 // ============================================================
 function verLista(){
   vistaActual = 'lista';
-  app.innerHTML = '<div class="spin"></div>';
-  cargarLista(true);
+  // v1.2: pintar AL INSTANTE desde la última lista conocida y traer la
+  // versión fresca en segundo plano (el repintado es imperceptible).
+  if (!LISTA.length) {
+    try { LISTA = JSON.parse(localStorage.getItem('hl_lista_v1') || '[]'); } catch (e) { LISTA = []; }
+    if (!(LISTA instanceof Array)) LISTA = [];
+  }
+  if (LISTA.length) { pintarLista(true); cargarLista(false); }
+  else { app.innerHTML = '<div class="spin"></div>'; cargarLista(true); }
 }
 
 function cargarLista(render){
@@ -357,6 +378,7 @@ function cargarLista(render){
         return;
       }
       LISTA = d.leads || [];
+      try { localStorage.setItem('hl_lista_v1', JSON.stringify(LISTA)); } catch (e) {}
       if (vistaActual === 'lista') pintarLista(render);
     })
     .catch(function(){
@@ -483,21 +505,41 @@ document.addEventListener('visibilitychange', function(){
 function verDetalle(id, t, desdeLista){
   vistaActual = 'detalle';
   ID = id; T = t;
-  app.innerHTML = '<div class="spin"></div>';
-  if (ADM) {
-    fetch(API + '?api=h_ping&adm=' + encodeURIComponent(ADM))
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        if (d && d.admin) { cargarDetalle(); }
-        else { borrarAdmin(); verOtp(true); }
-      })
-      .catch(function(){
-        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
-          '<p class="muted">Check your signal and reload the page.</p></div>';
-      });
-    return;
-  }
+  // v1.2: si el lead está en la lista, pintar el encabezado y los
+  // botones Call/WhatsApp AL INSTANTE mientras llega el detalle
+  // completo. Los links de correo (sin lista cargada) conservan el
+  // spinner. El registro de apertura sigue siendo api=h_lead: nada
+  // cambia en las métricas.
+  var prev = null;
+  for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
+  if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
+  // v1.2: sin ping previo en modo admin — el motor v21.5 responde
+  // admin_expired sin registrar apertura si la sesión venció.
   cargarDetalle();
+}
+
+// v1.2: encabezado provisional con los datos que ya tenemos de la
+// lista. Se reemplaza completo cuando llega api=h_lead.
+function pintarEsqueleto(l){
+  var chips = '';
+  if (l.gar) chips += '<span class="chip">Revenue ' + esc(l.gar) + '</span>';
+  if (l.state) chips += '<span class="chip">' + esc(l.state) + '</span>';
+  app.innerHTML =
+    '<div class="hero">' +
+      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
+      '<div class="row"><span class="eyebrow">Lead ' + esc(l.id) + (l.sent ? ' · Sent ' + esc(l.sent) : '') +
+        (ADM ? ' · ADMIN' : '') + '</span>' +
+      pillEstado(l.status) + '</div>' +
+      '<h1>' + esc(l.name || '-') + '</h1>' +
+      '<p class="biz">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</p>' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '') +
+    '</div>' +
+    '<div class="acts">' +
+      '<a class="act call" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
+      '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>' +
+    '</div>' +
+    '<div class="wrap det"><div class="spin" style="margin:44px auto"></div></div>';
+  document.getElementById('btn-lista').onclick = irALeads;
 }
 
 function cargarDetalle(){
@@ -506,14 +548,20 @@ function cargarDetalle(){
     .then(function(r){ return r.json(); })
     .then(function(d){
       if (!d.ok) {
+        // v1.2: sesión admin vencida — pedir código nuevo (el motor NO
+        // registró la apertura).
+        if (d.admin_expired) { borrarAdmin(); verOtp(true); return; }
+        if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
         app.innerHTML = '<div class="center"><h2>Invalid link</h2><p class="muted">' +
           esc(d.error || 'This link does not match any lead.') + '</p>' +
           '<button class="btn-back" onclick="irALeads()">All leads</button></div>';
         return;
       }
+      if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
       LEAD = d; render();
     })
     .catch(function(){
+      if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
       app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
         '<p class="muted">Check your signal and reload the page.</p></div>';
     });
