@@ -8,6 +8,18 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v5 — CALL TRACKING (requiere motor v23).
+   v5: cada tap en Call dispara api=call (fire-and-forget: si la red
+   falla, la llamada de Jenny NO se bloquea — el conteo se pierde,
+   nunca la llamada). El motor cuenta la llamada (columna CALLS),
+   escribe TIME TO CALL la primera vez, avanza el status a "Called"
+   SOLO desde New / Transferred u Opened y avisa a Rodrigo por
+   Telegram en cada llamada. El modo ADMIN no registra llamadas.
+   El encabezado del detalle muestra el conteo ("· 3 calls") y el
+   pill gana el color de "Called". El prompt post-llamada ("How did
+   the call go?") sigue igual: es la vía natural para salir de
+   "Called" hacia Contacted / Not Reached.
+   ------------------------------------------------------------
    LEAD PANEL v4.4 — RENDIMIENTO (requiere motor v21.5).
    v4.4: percepción de instantaneidad, sin cambios de flujo:
    - La lista se pinta AL INSTANTE desde la última copia conocida
@@ -191,7 +203,7 @@ var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFk
 // ===========================================================
 
 var app = document.getElementById('app');
-var COLORES = {'New / Transferred':'#667085','Opened':'#0e7490','Contacted':'#12805c',
+var COLORES = {'New / Transferred':'#667085','Opened':'#0e7490','Called':'#7c3aed','Contacted':'#12805c',
   'Not Reached':'#667085','Follow-Up':'#dc6803','Quoted':'#1d4ed8','Bound / Sold':'#14532d',
   'Declined':'#d92d20','Dead / Lost':'#344054'};
 var ETIQ = {'New / Transferred':'New','Bound / Sold':'Sold','Dead / Lost':'Lost'};
@@ -487,6 +499,17 @@ document.addEventListener('visibilitychange', function(){
 // ============================================================
 //  VISTA: DETALLE DEL LEAD
 // ============================================================
+// v5: registrar el tap en Call. Fire-and-forget: jamás bloquea ni
+// muestra error (la llamada de Jenny vale más que el conteo). En
+// modo ADMIN no se registra nada.
+function registrarLlamada(){
+  if (ADM) return;
+  try {
+    fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+      .catch(function(){});
+  } catch(e){}
+}
+
 function verDetalle(id, t, desdeLista){
   vistaActual = 'detalle';
   ID = id; T = t;
@@ -518,11 +541,14 @@ function pintarEsqueleto(l){
       (chips ? '<div class="chips">' + chips + '</div>' : '') +
     '</div>' +
     '<div class="acts">' +
-      '<a class="act call" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
+      '<a class="act call" id="btn-call-sk" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
       '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>' +
     '</div>' +
     '<div class="wrap det"><div class="spin" style="margin:44px auto"></div></div>';
   document.getElementById('btn-lista').onclick = irALeads;
+  // v5: un Call desde el esqueleto también cuenta (el detalle aún carga)
+  var bsk = document.getElementById('btn-call-sk');
+  if (bsk) bsk.addEventListener('click', registrarLlamada);
 }
 
 function cargarDetalle(){
@@ -625,6 +651,7 @@ function render(){
     '<div class="hero">' +
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
+        (d.calls ? ' · ' + d.calls + (d.calls === 1 ? ' call' : ' calls') : '') +
         (esAdmin ? ' · ADMIN' : '') + '</span>' +
       pillEstado(d.status) + '</div>' +
       '<h1>' + esc(d.name) + '</h1>' +
@@ -690,6 +717,7 @@ function render(){
   var tsLlamada = 0, promptMostrado = false;
   document.getElementById('btn-call').addEventListener('click', function(){
     tsLlamada = Date.now(); promptMostrado = false;
+    registrarLlamada(); // v5: conteo + status Called + aviso (motor v23)
   });
 
   function pantallaExito(dd){
