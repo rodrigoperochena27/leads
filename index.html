@@ -8,6 +8,20 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v5.2 — CONTADORES VIVOS + MARCADOR DE VERSIÓN.
+   v5.2 (requiere motor v23.2: opened_ts/updated_ts en api=list):
+   - Contador de tiempo pequeño en la tarjeta, bajo el ID y la hora:
+     New / Transferred = desde el envío · Opened = desde la apertura
+     · Called = desde que pasó a Called (LAST_UPDATED). Cualquier
+     otro estado NO lleva contador. Formato 32m / 3h 12m / 2d 4h;
+     gris <1h, ámbar 1-24h, rojo 24h+. Se refresca con el poll de
+     60s y con un tick local cada 60s.
+   - Encabezados de la vista All: "New / Transferred — Open Now" →
+     "Opened — Needs Action" → "Called — Pending Status" →
+     "Everything Else".
+   - "v5.2" visible al pie de la lista para VERIFICAR el deploy
+     (si no se ve, GitHub Pages sirve el archivo viejo).
+   ------------------------------------------------------------
    LEAD PANEL v5.1 — SECCIÓN "Called — pending update".
    v5.1: en la vista All, la lista se agrupa New leads → Opened —
    needs action → Called — pending update → Everything else. Chip
@@ -164,6 +178,8 @@ textarea{height:62px;resize:vertical}
 .lead .lright{flex:none;text-align:right}
 .lead .lpill{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
 .lead .ldate{font-size:11.5px;color:#98a2b3;margin-top:6px;font-weight:600}
+.lead .ltimer{display:block;font-size:10.5px;font-weight:800;margin-top:3px;letter-spacing:.2px}
+.lt-ok{color:#98a2b3}.lt-warn{color:#d97706}.lt-late{color:#dc2626}
 .newdot{width:8px;height:8px;border-radius:50%;background:#0e7490;flex:none;margin-right:-4px}
 .empty{color:var(--sub);font-size:14.5px;text-align:center;padding:34px 10px}
 .refresh-note{color:#98a2b3;font-size:12px;text-align:center;padding:6px 0 18px}
@@ -403,6 +419,27 @@ function filtrar(){
   });
 }
 
+// v5.2: contador vivo por tarjeta. SOLO en los 3 estados de acción:
+// New (desde el envío), Opened (desde la apertura), Called (desde el
+// pase a Called = updated_ts). Otro estado → sin contador.
+function tsContador(l){
+  if (l.status === 'New / Transferred') return l.sent_ts || 0;
+  if (l.status === 'Opened') return l.opened_ts || l.sent_ts || 0;
+  if (l.status === 'Called') return l.updated_ts || l.opened_ts || l.sent_ts || 0;
+  return 0;
+}
+function htmlContador(l){
+  var ts = tsContador(l);
+  if (!ts) return '';
+  var min = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  var txt, cls;
+  if (min < 60) txt = min + 'm';
+  else if (min < 1440) txt = Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+  else txt = Math.floor(min / 1440) + 'd ' + Math.floor((min % 1440) / 60) + 'h';
+  cls = min < 60 ? 'lt-ok' : (min < 1440 ? 'lt-warn' : 'lt-late');
+  return '<span class="ltimer ' + cls + '">\u23F1 ' + txt + '</span>';
+}
+
 function filaLead(l){
   var esNuevo = l.status === 'New / Transferred';
   var cov = (l.coverages || []).join(', ');
@@ -416,6 +453,7 @@ function filaLead(l){
     '<span class="lright">' + pillEstado(l.status, 'lpill') +
       '<span class="ldate" style="display:block">' + esc(l.id) +
         (l.sent ? ' · ' + esc(l.sent) : '') + '</span>' +
+      htmlContador(l) +
     '</span></button>';
 }
 
@@ -434,13 +472,13 @@ function construirCuerpo(){
     if (nuevos.length || abiertos.length || llamados.length) {
       var resto = visibles.filter(function(l){
         return l.status !== 'New / Transferred' && l.status !== 'Opened' && l.status !== 'Called'; });
-      return (nuevos.length ? '<p class="groupttl">New leads <span class="badge">' + nuevos.length + '</span></p>' +
+      return (nuevos.length ? '<p class="groupttl">New / Transferred — Open Now <span class="badge">' + nuevos.length + '</span></p>' +
                 nuevos.map(filaLead).join('') : '') +
-             (abiertos.length ? '<p class="groupttl">Opened — needs action <span class="badge">' + abiertos.length + '</span></p>' +
+             (abiertos.length ? '<p class="groupttl">Opened — Needs Action <span class="badge">' + abiertos.length + '</span></p>' +
                 abiertos.map(filaLead).join('') : '') +
-             (llamados.length ? '<p class="groupttl">Called — pending update <span class="badge">' + llamados.length + '</span></p>' +
+             (llamados.length ? '<p class="groupttl">Called — Pending Status <span class="badge">' + llamados.length + '</span></p>' +
                 llamados.map(filaLead).join('') : '') +
-             (resto.length ? '<p class="groupttl">Everything else</p>' + resto.map(filaLead).join('') : '');
+             (resto.length ? '<p class="groupttl">Everything Else</p>' + resto.map(filaLead).join('') : '');
     }
   }
   return visibles.map(filaLead).join('');
@@ -471,7 +509,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute.</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v5.2</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -501,6 +539,14 @@ function tickRefresco(){
   if (vistaActual === 'lista' && (SES || ADM) && document.visibilityState === 'visible') cargarLista(false);
 }
 pollTimer = setInterval(tickRefresco, 60000);
+// v5.2: tick local de los contadores — repinta SOLO las filas si la
+// lista está visible (sin red; el poll de 60s trae los datos).
+setInterval(function(){
+  if (vistaActual === 'lista' && document.visibilityState === 'visible') {
+    var rows = document.getElementById('rows');
+    if (rows) rows.innerHTML = construirCuerpo();
+  }
+}, 60000);
 document.addEventListener('visibilitychange', function(){
   if (document.visibilityState === 'visible') tickRefresco();
 });
