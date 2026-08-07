@@ -8,6 +8,14 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v5.3 — ORDEN POR ÚLTIMA ACCIÓN EN LAS SECCIONES.
+   v5.3: dentro de cada sección de acción, los leads se ordenan por
+   el MISMO timestamp del contador, lo más reciente arriba:
+   New = envío · Opened = apertura · Called = última acción de
+   Jenny (updated_ts). El timer queda ascendente dentro del grupo
+   (arriba lo recién tocado, abajo lo más frío). "Everything Else"
+   conserva el orden por fecha de envío. Solo cambia el panel.
+   ------------------------------------------------------------
    LEAD PANEL v5.2 — CONTADORES VIVOS + MARCADOR DE VERSIÓN.
    v5.2 (requiere motor v23.2: opened_ts/updated_ts en api=list):
    - Contador de tiempo pequeño en la tarjeta, bajo el ID y la hora:
@@ -466,9 +474,12 @@ function construirCuerpo(){
     return '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
   }
   if (filtroActivo === 'all' && !textoBusqueda) {
-    var nuevos = visibles.filter(function(l){ return l.status === 'New / Transferred'; });
-    var abiertos = visibles.filter(function(l){ return l.status === 'Opened'; });
-    var llamados = visibles.filter(function(l){ return l.status === 'Called'; });
+    // v5.3: cada grupo ordenado por su timestamp de acción (tsContador),
+    // lo más reciente arriba — el timer sube de arriba hacia abajo.
+    var porAccion = function(a, b){ return tsContador(b) - tsContador(a); };
+    var nuevos = visibles.filter(function(l){ return l.status === 'New / Transferred'; }).sort(porAccion);
+    var abiertos = visibles.filter(function(l){ return l.status === 'Opened'; }).sort(porAccion);
+    var llamados = visibles.filter(function(l){ return l.status === 'Called'; }).sort(porAccion);
     if (nuevos.length || abiertos.length || llamados.length) {
       var resto = visibles.filter(function(l){
         return l.status !== 'New / Transferred' && l.status !== 'Opened' && l.status !== 'Called'; });
@@ -509,7 +520,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v5.2</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v5.3</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
