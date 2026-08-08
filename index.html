@@ -8,6 +8,24 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v5.4 — PRUEBA DE HUMANO + CONTADORES EXTENDIDOS
+   (requiere motor v23.3).
+   v5.4:
+   1. ANTI-ESCÁNER: cargar el detalle ya NO registra la apertura.
+      Al primer gesto real (touch / scroll / tecla / mouse) con la
+      página visible, se dispara api=opened UNA vez. Los sandboxes
+      de los escáneres de correo renderizan pero no interactúan →
+      se acabaron las aperturas fantasma. api=call además exige
+      humano previo o 2.5s de página cargada (los auto-clickers de
+      los escáneres actúan al instante).
+   2. CONTADOR EN TODOS LOS ESTADOS VIVOS: New (desde envío),
+      Opened (desde apertura), Called/Contacted/Not Reached/
+      Follow-Up/Quoted (desde la última acción de Jenny). Bound /
+      Sold, Declined y Dead / Lost NO llevan contador.
+   3. Vista All: Bound / Sold, Declined y Dead / Lost ya no aparecen
+      en "Everything Else" — solo con los chips Sold / Closed (la
+      búsqueda sí los encuentra por nombre).
+   ------------------------------------------------------------
    LEAD PANEL v5.3 — ORDEN POR ÚLTIMA ACCIÓN EN LAS SECCIONES.
    v5.3: dentro de cada sección de acción, los leads se ordenan por
    el MISMO timestamp del contador, lo más reciente arriba:
@@ -427,14 +445,16 @@ function filtrar(){
   });
 }
 
-// v5.2: contador vivo por tarjeta. SOLO en los 3 estados de acción:
-// New (desde el envío), Opened (desde la apertura), Called (desde el
-// pase a Called = updated_ts). Otro estado → sin contador.
+// v5.4: contador vivo en TODOS los estados hasta cerrar: New (desde
+// el envío), Opened (desde la apertura), Called / Contacted / Not
+// Reached / Follow-Up / Quoted (desde la última acción de Jenny =
+// updated_ts). Bound / Sold, Declined y Dead / Lost: sin contador.
+var SIN_CONTADOR = {'Bound / Sold':1, 'Declined':1, 'Dead / Lost':1};
 function tsContador(l){
+  if (SIN_CONTADOR[l.status]) return 0;
   if (l.status === 'New / Transferred') return l.sent_ts || 0;
   if (l.status === 'Opened') return l.opened_ts || l.sent_ts || 0;
-  if (l.status === 'Called') return l.updated_ts || l.opened_ts || l.sent_ts || 0;
-  return 0;
+  return l.updated_ts || l.opened_ts || l.sent_ts || 0;
 }
 function htmlContador(l){
   var ts = tsContador(l);
@@ -474,6 +494,12 @@ function construirCuerpo(){
     return '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
   }
   if (filtroActivo === 'all' && !textoBusqueda) {
+    // v5.4: en All no aparecen los cerrados — viven en los chips
+    // Sold / Closed (la búsqueda por nombre sí los encuentra).
+    visibles = visibles.filter(function(l){ return !SIN_CONTADOR[l.status]; });
+    if (!visibles.length) {
+      return '<p class="empty">No open leads. Use the Sold / Closed filters to see finished leads.</p>';
+    }
     // v5.3: cada grupo ordenado por su timestamp de acción (tsContador),
     // lo más reciente arriba — el timer sube de arriba hacia abajo.
     var porAccion = function(a, b){ return tsContador(b) - tsContador(a); };
@@ -520,7 +546,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v5.3</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v5.4</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -565,11 +591,37 @@ document.addEventListener('visibilitychange', function(){
 // ============================================================
 //  VISTA: DETALLE DEL LEAD
 // ============================================================
+// v5.4: prueba de humano. Los escáneres de correo cargan el panel en
+// sandboxes que ejecutan JS pero no gesticulan: la apertura solo se
+// registra tras el primer gesto real con la página visible.
+var humano = false, aperturaEnviada = false, tsCarga = Date.now();
+function enviarApertura(){
+  if (aperturaEnviada || ADM || !ID || !T) return;
+  aperturaEnviada = true;
+  try {
+    fetch(API + '?api=opened&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+      .catch(function(){});
+  } catch(e){}
+}
+function marcarHumano(){
+  if (humano) return;
+  if (document.visibilityState !== 'visible') return;
+  humano = true;
+  if (vistaActual === 'detalle') enviarApertura();
+}
+['pointerdown','touchstart','keydown','wheel','scroll','pointermove']
+  .forEach(function(ev){
+    window.addEventListener(ev, marcarHumano, {passive:true, capture:true});
+  });
+
 // v5: registrar el tap en Call. Fire-and-forget: jamás bloquea ni
 // muestra error (la llamada de Jenny vale más que el conteo). En
 // modo ADMIN no se registra nada.
+// v5.4: exige humano previo o 2.5s de página cargada — los
+// auto-clickers de los escáneres actúan al instante tras cargar.
 function registrarLlamada(){
   if (ADM) return;
+  if (!humano && Date.now() - tsCarga < 2500) return;
   try {
     fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
@@ -577,6 +629,10 @@ function registrarLlamada(){
 }
 
 function verDetalle(id, t, desdeLista){
+  // v5.4: si el gesto humano ya ocurrió (p. ej. tap en la lista),
+  // registrar la apertura al entrar al detalle.
+  aperturaEnviada = false;
+  if (humano) setTimeout(enviarApertura, 0);
   vistaActual = 'detalle';
   ID = id; T = t;
   // v4.4: si el lead está en la lista, pintar el encabezado y los
