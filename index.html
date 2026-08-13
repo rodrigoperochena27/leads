@@ -8,6 +8,12 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.1 — INSURANCE INTEL (requiere motor v24.3).
+   v6.1: chip de lista minimo (texto fijo "FMCSA filing", el color
+   cuenta la historia); banda roja "DOT not found" cuando QCMobile
+   dice que el numero no existe (mal dictado); el no_filing muestra
+   el nombre del carrier segun FMCSA cuando se conoce.
+   ------------------------------------------------------------
    LEAD PANEL v6.0 — INSURANCE INTEL (requiere motor v24).
    v6.0: inteligencia de seguros FMCSA, condicional al DOT:
    - Lista: leads con DOT llevan UNA linea discreta (dot de color +
@@ -241,7 +247,7 @@ textarea{height:62px;resize:vertical}
 .refresh-note{color:#98a2b3;font-size:12px;text-align:center;padding:6px 0 18px}
 
 /* ── Insurance Intel (v6) ── */
-.inschip{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#475467;margin-top:4px;min-width:0}
+.inschip{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#667085;margin-top:3px;min-width:0}
 .inschip .idot{width:7px;height:7px;border-radius:50%;flex:none}
 .inschip .itxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .id-red{background:#dc2626}.id-amber{background:#d97706}.id-ok{background:#12805c}.id-gray{background:#98a2b3}
@@ -625,7 +631,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.0</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.1</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -762,9 +768,12 @@ function claseDot(s){
 // (cero cambios de layout).
 function chipSeguroLista(l){
   if (!l.dot) return '';
+  // v6.1: superficie minima — texto fijo, el color cuenta la historia
+  // y el detalle vive en el sheet. La tarjeta no crece de ancho ni
+  // carga nombres largos de aseguradoras.
   var e = estadoChip(l.ins);
-  if (!e) return '<span class="inschip"><span class="idot id-gray"></span><span class="itxt">Insurance</span></span>';
-  return '<span class="inschip"><span class="idot ' + claseDot(e.s) + '"></span><span class="itxt">' + esc(e.n) + '</span></span>';
+  return '<span class="inschip"><span class="idot ' + claseDot(e ? e.s : 'gray') +
+    '"></span><span class="itxt">FMCSA filing</span></span>';
 }
 
 // ── Sheet / modal ──
@@ -851,10 +860,23 @@ function cuerpoSeguro(ins){
           return '<div class="drow"><span>' + esc(tipoHumano(a.form)) + '</span><b>' + esc(a.insurer) + '</b></div>';
         }).join('') + '</div>';
     }
+  } else if (ins.carrier && ins.carrier.exists === false) {
+    // v6.1: el DOT no existe en FMCSA — casi siempre un numero mal
+    // dictado. Mensaje accionable, no una falsa "sin seguro".
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband red">DOT not found in FMCSA records.</div>' +
+      '<p class="itype" style="margin:0">The number may have been taken down wrong \u2014 ' +
+      'confirm it with the client and update the lead notes.</p></div>';
   } else if (ins.no_filing) {
     H += '<div class="icard"><p class="label">Current coverage</p>' +
       '<div class="iband amber">No FMCSA filing on record for this DOT.</div>' +
-      '<p class="itype" style="margin:0">Intrastate carriers and new authorities may not have federal ' +
+      '<p class="itype" style="margin:0">' +
+      (ins.carrier && ins.carrier.exists && ins.carrier.name
+        ? 'FMCSA lists this DOT as ' + esc(ins.carrier.name) +
+          (ins.carrier.city ? ' (' + esc(ins.carrier.city) + (ins.carrier.state ? ', ' + esc(ins.carrier.state) : '') + ')' : '') +
+          ' with no federal insurance filings. '
+        : '') +
+      'Intrastate carriers and new authorities may not have federal ' +
       'insurance filings \u2014 this is a federal-record status, not proof the business is uninsured.</p></div>';
   } else {
     H += '<div class="icard"><p class="label">Current coverage</p>' +
@@ -914,8 +936,10 @@ function filaSeguroDetalle(d){
   if (d.insurance) {
     var e = estadoChip(d.insurance.c || null);
     s = e ? e.s : 'gray';
+    if (d.insurance.carrier && d.insurance.carrier.exists === false) s = 'red';
     etiqueta = d.insurance.active ? (d.insurance.active.insurer || '-')
-      : (d.insurance.no_filing ? 'No FMCSA filing on record' : 'No active insurance on file');
+      : (d.insurance.carrier && d.insurance.carrier.exists === false ? 'DOT not found \u2014 check the number'
+      : (d.insurance.no_filing ? 'No FMCSA filing on record' : 'No active insurance on file'));
   } else { s = 'gray'; etiqueta = 'Insurance \u2014 tap to load'; }
   return '<button type="button" class="insrow" id="btn-ins">' +
     '<span class="idot ' + claseDot(s) + '"></span>' +
