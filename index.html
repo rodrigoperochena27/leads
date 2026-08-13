@@ -8,6 +8,36 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.0 — INSURANCE INTEL (requiere motor v24).
+   v6.0: inteligencia de seguros FMCSA, condicional al DOT:
+   - Lista: leads con DOT llevan UNA linea discreta (dot de color +
+     aseguradora). Rojo = cancelacion pendiente; ambar = sin seguro
+     activo / sin filing / renovacion <= 90 dias; verde suave = OK;
+     gris = data pendiente. Leads sin DOT: tarjeta identica, cero
+     cambios de layout.
+   - Detalle: fila "Insurance" bajo las notas; al tocarla se abre el
+     Insurance Intel — bottom sheet en movil, modal centrado en
+     desktop (>=900px). Secciones: estado actual (aseguradora, tipo
+     humano, efectiva, renovacion proyectada por aniversario, banda
+     de cancelacion pendiente), filings activos adicionales,
+     historial (deduplicado; sin duracion si las fechas del feed
+     vienen incoherentes), metricas derivadas y pie con updated_at +
+     link a SAFER. Historial limitado a los ultimos 20 filings.
+   - Con DOT sin data: la fila dice "Insurance - tap to load" y el
+     tap dispara api=insurance (reintento con throttle en el motor).
+   - Formularios BMC en lenguaje humano: 91/91X Liability (BI&PD),
+     34 Cargo, 84 Surety Bond, 85 Trust Fund; otros = "Form XX"
+     (nunca se inventa un mapeo no confirmado).
+   - Cero emojis en toda la feature; indicadores por CSS.
+   ------------------------------------------------------------
+   LEAD PANEL v5.5 — HUMANO ESTRICTO EN SAVE Y CALL (auditoría).
+   v5.5: api=save y api=call exigen humano === true, sin fallback de
+   tiempo. Los "clicks" sintéticos de los sandboxes (el.click()) NO
+   disparan pointerdown/touchstart; el dedo de Jenny sí — su primer
+   tap marca humano antes de que cualquier handler de click corra
+   (listeners en capture). Un escáner jamás puede guardar un status
+   ni registrar una llamada. Costo para Jenny: cero.
+   ------------------------------------------------------------
    LEAD PANEL v5.4 — PRUEBA DE HUMANO + CONTADORES EXTENDIDOS
    (requiere motor v23.3).
    v5.4:
@@ -210,6 +240,53 @@ textarea{height:62px;resize:vertical}
 .empty{color:var(--sub);font-size:14.5px;text-align:center;padding:34px 10px}
 .refresh-note{color:#98a2b3;font-size:12px;text-align:center;padding:6px 0 18px}
 
+/* ── Insurance Intel (v6) ── */
+.inschip{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#475467;margin-top:4px;min-width:0}
+.inschip .idot{width:7px;height:7px;border-radius:50%;flex:none}
+.inschip .itxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.id-red{background:#dc2626}.id-amber{background:#d97706}.id-ok{background:#12805c}.id-gray{background:#98a2b3}
+.insrow{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;cursor:pointer;font-family:inherit;text-align:left}
+.insrow:active{background:#f8fafc}
+.insrow .idot{width:9px;height:9px;border-radius:50%;flex:none}
+.insrow .imain{flex:1;min-width:0}
+.insrow .ittl{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;display:block}
+.insrow .ival{font-size:14.5px;font-weight:700;color:#101828;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.insrow .ichev{flex:none;color:#98a2b3;font-size:20px;font-weight:600;line-height:1}
+.ov{position:fixed;inset:0;background:rgba(16,24,40,.5);z-index:40;opacity:0;transition:opacity .18s}
+.ov.on{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:520px;max-height:88vh;background:var(--paper);border-radius:20px 20px 0 0;z-index:41;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .22s ease-out}
+.sheet.on{transform:translateY(0)}
+.sheet .shead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--line);background:#fff;border-radius:20px 20px 0 0}
+.sheet .shead .sttl{font-size:16px;font-weight:800;color:#101828}
+.sheet .shead .ssub{font-size:12px;color:var(--sub);font-weight:600;margin-top:2px}
+.sheet .sclose{border:0;background:#eef0f4;color:#101828;width:32px;height:32px;border-radius:50%;font-size:16px;font-weight:700;cursor:pointer;flex:none}
+.sheet .sbody{overflow-y:auto;padding:14px 16px calc(20px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.icard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px}
+.icard .label{margin-bottom:10px}
+.iband{border-radius:12px;padding:11px 13px;font-size:13.5px;font-weight:700;margin-bottom:11px;line-height:1.4}
+.iband.red{background:#fef3f2;border:1px solid #fecdca;color:#b42318}
+.iband.amber{background:#fffaeb;border:1px solid #fedf89;color:#b54708}
+.iins{font-size:17px;font-weight:800;color:#101828;line-height:1.25;margin:0 0 2px}
+.itype{font-size:13px;color:var(--sub);font-weight:600;margin:0 0 10px}
+.imetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:11px}
+.im{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 8px;text-align:center}
+.im b{display:block;font-size:15px;color:#101828}
+.im span{display:block;font-size:10.5px;color:#98a2b3;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:3px}
+.ih{padding:10px 0;border-bottom:1px solid #f2f4f7}
+.ih:last-child{border-bottom:0}
+.ih .ihi{font-size:13.5px;font-weight:700;color:#101828}
+.ih .ihd{font-size:12px;color:var(--sub);margin-top:2px;font-weight:600}
+.ih .iht{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.iht.rep{background:#eef4ff;color:#1d4ed8}.iht.can{background:#fef3f2;color:#b42318}
+.ifoot{font-size:11.5px;color:#98a2b3;text-align:center;padding:4px 4px 2px;line-height:1.6}
+.ifoot a{color:#5a6b85;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
+@media (min-width:900px){
+  .sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-46%) scale(.98);opacity:0;max-width:600px;max-height:82vh;border-radius:20px}
+  .sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .sheet .shead{border-radius:20px 20px 0 0}
+  .imetrics{gap:11px}
+}
+
 /* ── OTP ── */
 .otpwrap{padding:0 20px 30px;background:var(--paper)}
 .otpcard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 20px;margin-top:-26px;box-shadow:0 4px 18px rgba(23,35,59,.12)}
@@ -318,6 +395,7 @@ function irADetalle(id, t){
   verDetalle(id, t, true);
 }
 function volverALista(){
+  cerrarSeguro();
   history.pushState({}, '', location.pathname);
   verLista();
 }
@@ -477,6 +555,7 @@ function filaLead(l){
       '<span class="lname" style="display:block">' + esc(l.name || '-') + '</span>' +
       '<span class="lsub" style="display:block">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</span>' +
       (cov ? '<span class="lcov" style="display:block">' + esc(cov) + '</span>' : '') +
+      chipSeguroLista(l) +
     '</span>' +
     '<span class="lright">' + pillEstado(l.status, 'lpill') +
       '<span class="ldate" style="display:block">' + esc(l.id) +
@@ -546,7 +625,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v5.4</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.0</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -617,15 +696,232 @@ function marcarHumano(){
 // v5: registrar el tap en Call. Fire-and-forget: jamás bloquea ni
 // muestra error (la llamada de Jenny vale más que el conteo). En
 // modo ADMIN no se registra nada.
-// v5.4: exige humano previo o 2.5s de página cargada — los
-// auto-clickers de los escáneres actúan al instante tras cargar.
+// v5.5: humano estricto — un click sintético de sandbox no dispara
+// pointerdown; el tap real de Jenny sí (y llega antes del click).
 function registrarLlamada(){
   if (ADM) return;
-  if (!humano && Date.now() - tsCarga < 2500) return;
+  if (!humano) return;
   try {
     fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
   } catch(e){}
+}
+
+// ============================================================
+//  INSURANCE INTEL (v6) — condicional al DOT. Data del motor v24:
+//  api=list trae l.dot + l.ins (chip {n,s,e}); api=lead trae
+//  d.dot + d.insurance (objeto completo); api=insurance reintenta
+//  la carga cuando la celda sigue pendiente (throttle en el motor).
+// ============================================================
+var FORM_HUMANO = {'91':'Liability (BI&PD)','91X':'Liability (BI&PD)','34':'Cargo','84':'Surety Bond','85':'Trust Fund'};
+function tipoHumano(code){
+  var c = String(code || '').toUpperCase();
+  return FORM_HUMANO[c] || (c ? 'Form ' + c : '');
+}
+function metodoHumano(m){
+  var s = String(m || '').toUpperCase();
+  if (s.indexOf('REPL') !== -1) return ['Replaced','rep'];
+  if (s.indexOf('CANC') !== -1 || s === 'CANCEL') return ['Cancelled','can'];
+  return [m || '', 'rep'];
+}
+function fFecha(mdY){ // 'MM/DD/YYYY' -> 'Mar 1, 2019' (o el crudo si no parsea)
+  var m = String(mdY || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return String(mdY || '');
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MES[parseInt(m[1],10)-1] + ' ' + parseInt(m[2],10) + ', ' + m[3];
+}
+function tsDe(mdY){
+  var m = String(mdY || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? new Date(parseInt(m[3],10), parseInt(m[1],10)-1, parseInt(m[2],10)).getTime() : 0;
+}
+// Renovación proyectada: próximo aniversario de la fecha efectiva.
+function renovacion(effTs){
+  if (!effTs) return null;
+  var eff = new Date(effTs), hoy = new Date();
+  var r = new Date(hoy.getFullYear(), eff.getMonth(), eff.getDate());
+  if (r.getTime() <= hoy.getTime()) r = new Date(hoy.getFullYear()+1, eff.getMonth(), eff.getDate());
+  var dias = Math.ceil((r.getTime() - hoy.getTime()) / 864e5);
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return {fecha: MES[r.getMonth()] + ' ' + r.getDate() + ', ' + r.getFullYear(), dias: dias};
+}
+// Estado visual del chip: parte del c.s del motor y aplica la regla
+// cliente de renovación <= 90 días (ambar) sobre los 'ok'.
+function estadoChip(ins){
+  if (!ins) return null;
+  var s = ins.s, ren = null;
+  if (s === 'ok' && ins.e) {
+    ren = renovacion(ins.e);
+    if (ren && ren.dias <= 90) s = 'amber';
+  }
+  return {s: s, n: ins.n || '', ren: ren};
+}
+function claseDot(s){
+  return s === 'red' ? 'id-red' : (s === 'amber' ? 'id-amber' : (s === 'ok' ? 'id-ok' : 'id-gray'));
+}
+// Chip de la LISTA: una sola línea discreta. Sin DOT: cadena vacía
+// (cero cambios de layout).
+function chipSeguroLista(l){
+  if (!l.dot) return '';
+  var e = estadoChip(l.ins);
+  if (!e) return '<span class="inschip"><span class="idot id-gray"></span><span class="itxt">Insurance</span></span>';
+  return '<span class="inschip"><span class="idot ' + claseDot(e.s) + '"></span><span class="itxt">' + esc(e.n) + '</span></span>';
+}
+
+// ── Sheet / modal ──
+var seguroAbierto = null;
+function cerrarSeguro(){
+  if (!seguroAbierto) return;
+  var el = seguroAbierto; seguroAbierto = null;
+  el.ov.classList.remove('on'); el.sh.classList.remove('on');
+  setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
+    if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
+}
+function abrirSeguro(dot, ins){
+  cerrarSeguro();
+  var ov = document.createElement('div'); ov.className = 'ov';
+  var sh = document.createElement('div'); sh.className = 'sheet';
+  sh.innerHTML =
+    '<div class="shead"><div><div class="sttl">Insurance</div>' +
+      '<div class="ssub">DOT ' + esc(dot) + '</div></div>' +
+      '<button type="button" class="sclose" aria-label="Close">&#10005;</button></div>' +
+    '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
+  document.body.appendChild(ov); document.body.appendChild(sh);
+  ov.addEventListener('click', cerrarSeguro);
+  sh.querySelector('.sclose').addEventListener('click', cerrarSeguro);
+  seguroAbierto = {ov: ov, sh: sh};
+  requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+  if (!ins) cargarSeguro(sh);
+}
+// Reintento on-demand (chip gris): api=insurance con throttle del motor.
+function cargarSeguro(sh){
+  fetch(API + '?api=insurance&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!seguroAbierto || seguroAbierto.sh !== sh) return;
+      var body = sh.querySelector('.sbody');
+      if (d.ok && d.insurance) {
+        if (LEAD && LEAD.id === ID) LEAD.insurance = d.insurance;
+        body.innerHTML = cuerpoSeguro(d.insurance);
+      } else {
+        body.innerHTML = '<p class="empty">Insurance data is not available yet.<br>' +
+          'It refreshes automatically \u2014 try again in a few minutes.</p>';
+      }
+    })
+    .catch(function(){
+      if (!seguroAbierto || seguroAbierto.sh !== sh) return;
+      sh.querySelector('.sbody').innerHTML = '<p class="empty">Connection error. Try again.</p>';
+    });
+}
+// Historial: dedup exacto + sin duración cuando el feed federal trae
+// fechas incoherentes (cancelled < effective — ocurre en carriers
+// grandes con cadenas de reemplazo).
+function historialLimpio(hist){
+  var visto = {}, out = [];
+  (hist || []).forEach(function(h){
+    var k = [h.insurer, h.type, h.effective, h.cancelled, h.method].join('|');
+    if (visto[k]) return; visto[k] = 1; out.push(h);
+  });
+  return out;
+}
+function cuerpoSeguro(ins){
+  var H = '';
+  var act = ins.active;
+  var e = estadoChip(ins.c ? ins.c : null);
+
+  // 1) Estado actual
+  if (act) {
+    var ren = renovacion(tsDe(act.effective));
+    H += '<div class="icard"><p class="label">Current coverage</p>';
+    if (act.pending_cancel) {
+      H += '<div class="iband red">Pending cancellation \u2014 effective ' + esc(fFecha(act.cancel_effective)) +
+        '. Coverage lapses on that date unless replaced.</div>';
+    } else if (ren && ren.dias <= 90) {
+      H += '<div class="iband amber">Projected renewal in ' + ren.dias + ' days.</div>';
+    }
+    H += '<p class="iins">' + esc(act.insurer || '-') + '</p>' +
+      '<p class="itype">' + esc(tipoHumano(act.form)) + (act.policy_no ? ' \u00b7 Policy ' + esc(act.policy_no) : '') + '</p>' +
+      '<div class="drow"><span>Effective since</span><b>' + esc(fFecha(act.effective)) + '</b></div>' +
+      (ren ? '<div class="drow"><span>Projected renewal</span><b>' + esc(ren.fecha) + ' (' + ren.dias + 'd)</b></div>' : '') +
+      '</div>';
+    var extras = (ins.active_all || []).slice(1);
+    if (extras.length) {
+      H += '<div class="icard"><p class="label">Other active filings</p>' +
+        extras.map(function(a){
+          return '<div class="drow"><span>' + esc(tipoHumano(a.form)) + '</span><b>' + esc(a.insurer) + '</b></div>';
+        }).join('') + '</div>';
+    }
+  } else if (ins.no_filing) {
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband amber">No FMCSA filing on record for this DOT.</div>' +
+      '<p class="itype" style="margin:0">Intrastate carriers and new authorities may not have federal ' +
+      'insurance filings \u2014 this is a federal-record status, not proof the business is uninsured.</p></div>';
+  } else {
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband amber">No active insurance on file. All previous policies were cancelled or replaced.</div></div>';
+  }
+
+  // 2) Métricas derivadas
+  var hist = historialLimpio(ins.history);
+  var aseguradoras = {};
+  hist.forEach(function(h){ if (h.insurer) aseguradoras[h.insurer] = 1; });
+  if (act && act.insurer) aseguradoras[act.insurer] = 1;
+  var nIns = Object.keys(aseguradoras).length;
+  var tenencia = '-';
+  if (act) {
+    var ts = tsDe(act.effective);
+    if (ts) {
+      var meses = Math.max(0, Math.floor((Date.now() - ts) / (30.44 * 864e5)));
+      tenencia = meses >= 12 ? (Math.floor(meses / 12) + 'y ' + (meses % 12) + 'm') : (meses + 'm');
+    }
+  }
+  H += '<div class="imetrics">' +
+    '<div class="im"><b>' + esc(tenencia) + '</b><span>With insurer</span></div>' +
+    '<div class="im"><b>' + nIns + '</b><span>Insurers on record</span></div>' +
+    '<div class="im"><b>' + hist.length + '</b><span>Past filings</span></div>' +
+    '</div>';
+
+  // 3) Historial
+  if (hist.length) {
+    H += '<div class="icard"><p class="label">Policy history</p>' +
+      hist.map(function(h){
+        var mm = metodoHumano(h.method);
+        var e1 = tsDe(h.effective), e2 = tsDe(h.cancelled);
+        var periodo = fFecha(h.effective) + ' \u2013 ' + fFecha(h.cancelled);
+        var dur = '';
+        if (e1 && e2 && e2 >= e1) {
+          var dd = Math.round((e2 - e1) / 864e5);
+          dur = dd >= 365 ? ' \u00b7 ' + (dd / 365).toFixed(1).replace('.0','') + 'y'
+              : dd >= 30 ? ' \u00b7 ' + Math.round(dd / 30) + 'mo' : ' \u00b7 ' + dd + 'd';
+        }
+        return '<div class="ih"><div class="ihi">' + esc(h.insurer || '-') +
+          '<span class="iht ' + mm[1] + '">' + esc(mm[0]) + '</span></div>' +
+          '<div class="ihd">' + esc(tipoHumano(h.type)) + ' \u00b7 ' + esc(periodo) + esc(dur) + '</div></div>';
+      }).join('') + '</div>';
+  }
+
+  // 4) Pie
+  H += '<p class="ifoot">FMCSA L&amp;I data \u00b7 Updated ' + esc(ins.updated_at || '') +
+    (hist.length >= 20 ? ' \u00b7 Last 20 filings shown' : '') + '<br>' +
+    '<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=' +
+    encodeURIComponent(ins.dot || '') + '" target="_blank" rel="noopener">View SAFER snapshot</a></p>';
+  return H;
+}
+// Fila del DETALLE (bajo las notas). Sin DOT: cadena vacía.
+function filaSeguroDetalle(d){
+  if (!d.dot) return '';
+  var etiqueta, s;
+  if (d.insurance) {
+    var e = estadoChip(d.insurance.c || null);
+    s = e ? e.s : 'gray';
+    etiqueta = d.insurance.active ? (d.insurance.active.insurer || '-')
+      : (d.insurance.no_filing ? 'No FMCSA filing on record' : 'No active insurance on file');
+  } else { s = 'gray'; etiqueta = 'Insurance \u2014 tap to load'; }
+  return '<button type="button" class="insrow" id="btn-ins">' +
+    '<span class="idot ' + claseDot(s) + '"></span>' +
+    '<span class="imain"><span class="ittl">Insurance \u00b7 DOT ' + esc(d.dot) + '</span>' +
+    '<span class="ival">' + esc(etiqueta) + '</span></span>' +
+    '<span class="ichev">&#8250;</span></button>';
 }
 
 function verDetalle(id, t, desdeLista){
@@ -788,7 +1084,7 @@ function render(){
     '</div>' +
 
     '<div class="wrap det">' +
-      notas + actividad + det +
+      notas + filaSeguroDetalle(d) + actividad + det +
       tarjetaEstado +
     '</div>' +
 
@@ -796,6 +1092,13 @@ function render(){
 
   sel = null; selLabel = '';
   document.getElementById('btn-lista').onclick = irALeads;
+
+  // v6: Insurance Intel — abre el sheet (con data cargada) o dispara
+  // el fetch on-demand cuando la celda sigue pendiente.
+  var bIns = document.getElementById('btn-ins');
+  if (bIns) bIns.addEventListener('click', function(){
+    abrirSeguro(d.dot, d.insurance || null);
+  });
 
   // v4.1: en modo admin no hay controles de estado ni prompt post-llamada
   if (esAdmin) return;
@@ -857,6 +1160,7 @@ function render(){
   function guardarRapido(estado, etiqueta){
     var cp = document.getElementById('callprompt');
     if (cp) cp.remove();
+    if (!humano && !ADM) return; // v5.5: un sandbox jamás guarda un status
     var url = API + '?api=save&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
       '&s=' + estado + '&notes=';
     var sv = document.getElementById('save');
