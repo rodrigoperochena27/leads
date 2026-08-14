@@ -8,6 +8,25 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.4 — DETALLE PENSADO COMO FLUJO DE AGENTE (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.4: jerarquia de informacion de venta, no volcado de datos:
+   - DESKTOP: sidebar IZQUIERDA (340px) = datos de referencia que la
+     agente consulta durante la llamada — Full details partido en
+     tarjetas semanticas (Contact / Business profile / Financials /
+     Coverage answers, mapeo por etiqueta con grupo "Other details"
+     para lo no reconocido: ninguna fila se pierde) + Your activity.
+     Columna DERECHA = el flujo de trabajo: Notes de Rodrigo ->
+     Insurance intel -> Update status. Patron CRM clasico (panel
+     "about" a la izquierda, trabajo al centro).
+   - Valores Yes/No como pills verde/gris (escaneables de un vistazo)
+     y el email como link mailto. Data intacta, solo presentacion.
+   - MOVIL: mismo flujo de Jenny de siempre; Full details sigue
+     siendo UNA tarjeta colapsable, ahora con subtitulos de grupo
+     adentro (se revierte el "open" forzado de v6.3).
+   - Update status: pulido visual puro (hover, foco de inputs,
+     seleccion mas clara) — cero cambios de logica, ids o flujo.
+   ------------------------------------------------------------
    LEAD PANEL v6.3.1 — DETALLE ESTILO DOTSEARCH EN DESKTOP (motor
    v24.4; solo panel, sin Nueva version del webhook).
    v6.3.1 corrige el desastre de v6.3 (columna fija que quedaba
@@ -213,6 +232,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .drow{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:7px 0;border-bottom:1px solid #f2f4f7}
 .drow:last-child{border-bottom:0}
 .drow span{color:var(--sub)}
+.drow b{text-align:right}
+/* v6.4: subtitulos de grupo dentro de Full details (movil) */
+.gsub{font-size:10.5px;font-weight:800;letter-spacing:1.2px;color:#b3bcc9;text-transform:uppercase;margin:13px 0 2px}
+.inner .gsub:first-child{margin-top:4px}
+/* v6.4: pills Yes/No y link de email */
+.pv{display:inline-block;font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px}
+.pv.yes{background:#e6f4ee;color:#12805c}
+.pv.no{background:#eef0f4;color:#667085}
+.dlink{color:#17233b;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
 .drow b{text-align:right;color:#101828}
 details.card{padding:0;overflow:hidden}
 details.card summary{list-style:none;cursor:pointer;padding:15px 18px 12px;font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);margin:0 0 2px}
@@ -223,7 +251,8 @@ details.card .inner{padding:4px 18px 14px}
 
 /* ── Grilla de estados 2×3 ── */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.st{position:relative;display:flex;align-items:center;gap:9px;padding:14px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fff;color:#101828;font-size:14.5px;font-weight:700;cursor:pointer;text-align:left}
+.st{position:relative;display:flex;align-items:center;gap:9px;padding:14px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fff;color:#101828;font-size:14.5px;font-weight:700;cursor:pointer;text-align:left;transition:border-color .12s,background .12s}
+.st:hover{border-color:#b9c2d0}
 .st .dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex:none}
 .st.sel{border-color:var(--c);background:color-mix(in srgb, var(--c) 9%, #fff);box-shadow:0 0 0 1px var(--c)}
 @supports not (background:color-mix(in srgb,#fff 9%,#fff)){.st.sel{background:#f8fafc}}
@@ -235,6 +264,7 @@ label:first-child{margin-top:0}
 .opt{color:#98a2b3;font-weight:500;font-size:11px}
 .hint{margin:4px 0 0;font-size:12px;color:var(--sub)}
 input,select,textarea{width:100%;padding:12px;border:1px solid #d0d5dd;border-radius:11px;font-size:16px;background:#fff;color:#101828}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#17233b;box-shadow:0 0 0 3px rgba(23,35,59,.08)}
 textarea{height:62px;resize:vertical}
 .errline{color:#d92d20;font-size:14px;font-weight:600;min-height:18px;margin:9px 2px 0}
 
@@ -407,7 +437,8 @@ textarea{height:62px;resize:vertical}
   .hero.det-hero .hmain{min-width:0}
   .hacts{display:flex;gap:10px;flex:none;margin-bottom:2px}
   .hacts .act{flex:none;padding:13px 38px}
-  .wrap.det{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0 16px;align-items:start}
+  /* v6.4: sidebar de referencia a la IZQUIERDA, flujo a la derecha */
+  .wrap.det{margin-top:16px;display:grid;grid-template-columns:340px minmax(0,1fr);gap:0 16px;align-items:start}
   .wrap.det.solo{display:block;max-width:720px;margin-left:auto;margin-right:auto}
   .dmain,.dside{min-width:0}
   .dside .card, .dside details.card{margin-bottom:12px}
@@ -725,7 +756,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.3.1</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.4</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1194,6 +1225,41 @@ function cuerpoCarrier(ins){
   return H;
 }
 
+// ── v6.4: FULL DETAILS AGRUPADO ──
+// Mapa etiqueta (lowercase) -> grupo. Lo no reconocido cae en
+// "Other details": NINGUNA fila del motor se pierde jamas.
+var GRUPOS_DET = [
+  ['Contact', ['email','address','phone']],
+  ['Business profile', ['description','category','naics / sic','business type','years in business','owner experience']],
+  ['Financials', ['revenue','payroll','subcontractors','ft employees']],
+  ['Coverage answers', ['annual policy','currently insured','quoted elsewhere']]
+];
+function grupoDetalles(details){
+  var usados = {}, out = [];
+  GRUPOS_DET.forEach(function(g){
+    var filas = [];
+    (details || []).forEach(function(x, i){
+      if (usados[i]) return;
+      if (g[1].indexOf(String(x[0] || '').toLowerCase().trim()) !== -1) { usados[i] = 1; filas.push(x); }
+    });
+    if (filas.length) out.push({t: g[0], f: filas});
+  });
+  var resto = [];
+  (details || []).forEach(function(x, i){ if (!usados[i]) resto.push(x); });
+  if (resto.length) out.push({t: 'Other details', f: resto});
+  return out;
+}
+function filaDet(x){
+  var v = String(x[1] === null || x[1] === undefined ? '' : x[1]);
+  var low = v.trim().toLowerCase(), val;
+  if (low === 'yes') val = '<span class="pv yes">Yes</span>';
+  else if (low === 'no') val = '<span class="pv no">No</span>';
+  else if (String(x[0] || '').toLowerCase().trim() === 'email' && v.indexOf('@') !== -1)
+    val = '<b><a class="dlink" href="mailto:' + esc(v) + '">' + esc(v) + '</a></b>';
+  else val = '<b>' + esc(v) + '</b>';
+  return '<div class="drow"><span>' + esc(x[0]) + '</span>' + val + '</div>';
+}
+
 // Fila del DETALLE (bajo las notas). Sin DOT: cadena vacía.
 function filaSeguroDetalle(d){
   if (!d.dot) return '';
@@ -1312,13 +1378,19 @@ function render(){
   var actividad = (actRows.length || actNotas)
     ? '<div class="card act-prev"><p class="label">Your activity</p>' + actRows.join('') + actNotas + '</div>' : '';
 
-  var det = '';
-  if (d.details && d.details.length) {
-    // v6.3: abierto por defecto en desktop (columna lateral)
-    var abierto = (window.matchMedia && matchMedia('(min-width:900px)').matches) ? ' open' : '';
-    det = '<details class="card"' + abierto + '><summary>Full details</summary><div class="inner">' +
-      d.details.map(function(x){ return '<div class="drow"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>'; }).join('') +
-      '</div></details>';
+  // v6.4: Full details agrupado. Movil = una tarjeta colapsable con
+  // subtitulos (flujo original). Desktop = una tarjeta por grupo en
+  // la sidebar de referencia.
+  var grupos = grupoDetalles(d.details || []);
+  var det = '', detCards = '';
+  if (grupos.length) {
+    det = '<details class="card"><summary>Full details</summary><div class="inner">' +
+      grupos.map(function(g){
+        return '<p class="gsub">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('');
+      }).join('') + '</div></details>';
+    detCards = grupos.map(function(g){
+      return '<div class="card"><p class="label">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('') + '</div>';
+    }).join('');
   }
 
   var botones = OPCIONES.map(function(o){
@@ -1383,11 +1455,11 @@ function render(){
       '<div class="hmain">' + heroInfo + '</div>' +
       '<div class="hacts">' + actsHtml + '</div></div></div>';
     var dMain = [notas, filaSeguroDetalle(d), tarjetaEstado].filter(function(x){ return !!x; });
-    var dLado = [actividad, det].filter(function(x){ return !!x; });
+    var dLado = [detCards, actividad].filter(function(x){ return !!x; });
     if (!dMain.length) { dMain = dLado; dLado = []; } // jamas una columna fantasma
     cuerpo = '<div class="wrap det' + (dLado.length ? '' : ' solo') + '">' +
-      '<div class="dmain">' + dMain.join('') + '</div>' +
       (dLado.length ? '<div class="dside">' + dLado.join('') + '</div>' : '') +
+      '<div class="dmain">' + dMain.join('') + '</div>' +
       '</div>';
   } else {
     hero = '<div class="hero det-hero">' + heroInfo + '</div>' +
