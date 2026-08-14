@@ -8,6 +8,21 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.3 — DETALLE PROFESIONAL EN DESKTOP (motor v24.4;
+   solo panel, sin Nueva version del webhook).
+   v6.3: el detalle del lead deja de ser "movil estirado" en >=900px:
+   - Un solo ancho de referencia (760px) para hero interior, acciones
+     y tarjetas — se acabo el apilado de tres anchos distintos.
+   - Grilla dos columnas estilo dotsearch bajo notas + insurance:
+     principal (Update status) a la izquierda, lateral (Full details
+     abierto por defecto en desktop, Your activity) a la derecha.
+   - Tarjetas con el lenguaje del modal: titulos uppercase con
+     divisor (notas, Full details, Update status, Your activity).
+   - Modal: cuando el carrier no registra autoridad for-hire (chips
+     vacios, tipico intrastate) se muestra UNA linea explicativa en
+     vez de tres chips "-". Ancho desktop 640px.
+   - MOVIL: cero cambios de layout — el flujo de Jenny queda intacto.
+   ------------------------------------------------------------
    LEAD PANEL v6.2 — FASE 2: CARRIER PROFILE (requiere motor v24.4).
    v6.2: el modal de Insurance se reestructura estilo dotsearch,
    manteniendo paleta y tipografia del panel:
@@ -182,6 +197,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .wrap{padding:0 16px;background:var(--paper)}
 .card{background:#fff;border-radius:16px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--line)}
 .label{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;margin:0 0 8px;text-transform:uppercase}
+/* v6.3: titulos de tarjeta del DETALLE con divisor (lenguaje del modal) */
+.card>.label{padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.card.warn>.label{border-bottom-color:#f3e3bd}
 .notes ul{margin:0;padding-left:18px}
 .notes li{font-size:14.5px;color:#344054;margin-bottom:5px;line-height:1.45}
 .card.warn{background:#fffaeb;border-color:#fedf89}
@@ -193,10 +211,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .drow span{color:var(--sub)}
 .drow b{text-align:right;color:#101828}
 details.card{padding:0;overflow:hidden}
-details.card summary{list-style:none;cursor:pointer;padding:15px 18px;font-size:14px;font-weight:700;color:#344054;display:flex;justify-content:space-between;align-items:center}
-details.card summary::after{content:'+';font-size:18px;color:#98a2b3;font-weight:600}
+details.card summary{list-style:none;cursor:pointer;padding:15px 18px 12px;font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);margin:0 0 2px}
+details.card:not([open]) summary{border-bottom:0}
+details.card summary::after{content:'+';font-size:16px;color:#98a2b3;font-weight:600;letter-spacing:0}
 details[open].card summary::after{content:'–'}
-details.card .inner{padding:0 18px 14px}
+details.card .inner{padding:4px 18px 14px}
 
 /* ── Grilla de estados 2×3 ── */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
@@ -348,7 +367,7 @@ textarea{height:62px;resize:vertical}
 .cs b{display:block;font-size:17px;color:#101828}
 .cs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-top:3px}
 @media (min-width:900px){
-  .sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-46%) scale(.98);opacity:0;max-width:600px;max-height:82vh;border-radius:20px}
+  .sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-46%) scale(.98);opacity:0;max-width:640px;max-height:82vh;border-radius:20px}
   .sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
   .sheet .shead{border-radius:20px 20px 0 0}
   .imetrics{gap:11px}
@@ -376,8 +395,19 @@ textarea{height:62px;resize:vertical}
   #rows .lead{margin-bottom:0;min-width:0}
   #rows .empty{grid-column:1/-1}
   .otpwrap{max-width:620px;margin:0 auto}
-  .wrap.det{max-width:652px;margin:0 auto}
-  .acts{max-width:588px;margin:-32px auto 14px}
+  /* v6.3: DETALLE en desktop — un solo ancho de referencia (760px)
+     para hero interior, acciones y tarjetas, y grilla dos columnas
+     estilo dotsearch: principal (status) + lateral (details/activity).
+     El orden del DOM no cambia: solo CSS — movil intacto. */
+  .hero.det-hero .hinner{max-width:760px;margin:0 auto}
+  .wrap.det{max-width:760px;margin:0 auto}
+  .acts{max-width:760px;margin:-32px auto 18px;padding:0 0;gap:12px}
+  .acts .act{flex:0 1 260px}
+  .wrap.det{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0 16px;align-items:start}
+  .wrap.det>.notes, .wrap.det>.insrow{grid-column:1/-1}
+  .wrap.det>.statuscard{grid-column:1;grid-row:3}
+  .wrap.det>.side{grid-column:2;grid-row:3;min-width:0}
+  .wrap.det>.side .card{margin-bottom:12px}
   .savebar{max-width:940px}
   .savebar .save{max-width:620px;margin:0 auto}
 }
@@ -692,7 +722,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.2</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.3</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1110,11 +1140,15 @@ function cuerpoCarrier(ins){
     '<div class="drow"><span>Operation type</span><b>' + esc(p.op || '-') + '</b></div>' +
     '<div class="drow"><span>Allowed to operate</span><b>' + (p.allowed === 'Y' ? 'Yes' : p.allowed === 'N' ? 'No' : '-') + '</b></div>' +
     '<div class="drow" style="border-bottom:0"><span>Authority</span></div>' +
-    '<div class="achips">' +
-      '<span class="achip ' + aCom[1] + '">Common: ' + aCom[0] + '</span>' +
-      '<span class="achip ' + aCon[1] + '">Contract: ' + aCon[0] + '</span>' +
-      '<span class="achip ' + aBrk[1] + '">Broker: ' + aBrk[0] + '</span>' +
-    '</div></div>';
+    // v6.3: sin autoridad for-hire registrada (tipico intrastate):
+    // una linea honesta en vez de tres chips vacios.
+    ((aCom[0] === '-' && aCon[0] === '-' && aBrk[0] === '-')
+      ? '<p class="ocap" style="margin:2px 0 0">No for-hire operating authority on record \u2014 common for intrastate carriers.</p>'
+      : '<div class="achips">' +
+          '<span class="achip ' + aCom[1] + '">Common: ' + aCom[0] + '</span>' +
+          '<span class="achip ' + aCon[1] + '">Contract: ' + aCon[0] + '</span>' +
+          '<span class="achip ' + aBrk[1] + '">Broker: ' + aBrk[0] + '</span>' +
+        '</div>') + '</div>';
 
   // 3) Safety: barras OOS + rating
   H += '<div class="icard"><p class="label">Out of service rates \u00b7 last 24 months</p>' +
@@ -1201,7 +1235,7 @@ function verDetalle(id, t, desdeLista){
 function pintarEsqueleto(l){
   var chips = (l.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
   app.innerHTML =
-    '<div class="hero">' +
+    '<div class="hero det-hero"><div class="hinner">' +
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(l.id) + (l.sent ? ' · Sent ' + esc(l.sent) : '') +
         (ADM ? ' · ADMIN' : '') + '</span>' +
@@ -1209,7 +1243,7 @@ function pintarEsqueleto(l){
       '<h1>' + esc(l.name || '-') + '</h1>' +
       '<p class="biz">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</p>' +
       (chips ? '<div class="chips">' + chips + '</div>' : '') +
-    '</div>' +
+    '</div></div>' +
     '<div class="acts">' +
       '<a class="act call" id="btn-call-sk" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
       '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>' +
@@ -1274,7 +1308,9 @@ function render(){
 
   var det = '';
   if (d.details && d.details.length) {
-    det = '<details class="card"><summary>Full details</summary><div class="inner">' +
+    // v6.3: abierto por defecto en desktop (columna lateral)
+    var abierto = (window.matchMedia && matchMedia('(min-width:900px)').matches) ? ' open' : '';
+    det = '<details class="card"' + abierto + '><summary>Full details</summary><div class="inner">' +
       d.details.map(function(x){ return '<div class="drow"><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>'; }).join('') +
       '</div></details>';
   }
@@ -1286,7 +1322,7 @@ function render(){
   }).join('');
 
   var tarjetaEstado = esAdmin ? '' :
-      '<div class="card">' +
+      '<div class="card statuscard">' +
         '<p class="label">Update status</p>' +
         '<div class="grid" id="sts">' + botones + '</div>' +
         '<div id="box-sold" class="ctx">' +
@@ -1318,7 +1354,7 @@ function render(){
       '</div>';
 
   app.innerHTML =
-    '<div class="hero">' +
+    '<div class="hero det-hero"><div class="hinner">' +
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
         (d.calls ? ' · ' + d.calls + (d.calls === 1 ? ' call' : ' calls') : '') +
@@ -1328,7 +1364,7 @@ function render(){
       '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
       (chips ? '<div class="chips">' + chips + '</div>' : '') +
       (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '') +
-    '</div>' +
+    '</div></div>' +
 
     '<div class="acts">' +
       '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
@@ -1336,8 +1372,9 @@ function render(){
     '</div>' +
 
     '<div class="wrap det">' +
-      notas + filaSeguroDetalle(d) + actividad + det +
+      notas + filaSeguroDetalle(d) +
       tarjetaEstado +
+      '<div class="side">' + actividad + det + '</div>' +
     '</div>' +
 
     (esAdmin ? '' : '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>');
