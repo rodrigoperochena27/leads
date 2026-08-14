@@ -8,6 +8,18 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.9 — FASE 3 PULIDA (motor v24.7).
+   v6.9: (1) el modal de seguro ya no cambia de tamano entre tabs
+   (clase sheet--ins con alto/ancho fijos; el sheet de Confirm &
+   save sigue auto — NO tocar). (2) Tab Inspections estilo dotsearch:
+   resumen arriba (inspecciones/violaciones/OOS), report #, equipo
+   inspeccionado con ano/tipo (join con la flota decodificada), VIN
+   clicable al decoder oficial NHTSA, placas, y cada violacion con
+   chip Warning/OOS y etiqueta Driver / Vehicle-Unit n. (3) Flota
+   con placa y VIN clicable; sin modelo redundante ("GREAT DANE
+   TRAILERS Great Dane Trailers"). (4) Ubicacion sin estado duplicado
+   ("CLE ELUM WA, WA"). (5) Tarjeta "Company contacts" en Carrier
+   (officers/tel/email/direccion del Census) si el motor la trae.
    LEAD PANEL v6.8 — INSURANCE INTEL FASE 3 (motor v24.6).
    v6.8: tercera tab "Inspections" en el modal (historial 36 meses:
    fecha, ubicacion, nivel CVSA, badges Clean/violaciones/OOS y cada
@@ -479,6 +491,21 @@ textarea{height:62px;resize:vertical}
 .ocap{font-size:11.5px;color:var(--sub);font-weight:600;line-height:1.45}
 .ocap .below{color:#12805c;font-weight:700}
 .ocap .above{color:#b42318;font-weight:700}
+/* v6.9: el modal de seguro NO cambia de tamano entre tabs.
+   OJO: solo sheet--ins — el sheet de Confirm & save sigue auto. */
+.sheet--ins{height:88vh}
+@media (min-width:900px){
+  .sheet--ins{width:640px;max-width:calc(100vw - 24px);height:82vh}
+}
+/* v6.9: resumen del tab Inspections + tabla de equipo + contactos */
+.vchip{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px;flex:none}
+.vchip.warn{background:#fff8e6;color:#a15c00}
+.vchip.oos{background:#fef3f2;color:#b42318}
+.eqrow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f2f4f7}
+.eqrow:last-child{border-bottom:0}
+.eqrow b{font-size:12px;color:#101828}
+.eqmeta{display:block;font-size:10px;color:#98a2b3;font-weight:700;margin-top:1px}
+.vinlink{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#1d4ed8;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
 /* v6.8: tab Inspections + flota */
 .inh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .inh b{font-size:13.5px;color:#101828}
@@ -878,7 +905,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.8</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.9</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1092,7 +1119,7 @@ function armarSeguroSheet(sh, dot, ins){
 function abrirSeguro(dot, ins){
   cerrarSeguro();
   var ov = document.createElement('div'); ov.className = 'ov';
-  var sh = document.createElement('div'); sh.className = 'sheet';
+  var sh = document.createElement('div'); sh.className = 'sheet sheet--ins'; // v6.9: tamano fijo
   armarSeguroSheet(sh, dot, ins);
   document.body.appendChild(ov); document.body.appendChild(sh);
   ov.addEventListener('click', cerrarSeguro);
@@ -1273,6 +1300,53 @@ function barraOos(titulo, o){
         ? ' \u00b7 <span class="' + (encima ? 'above' : 'below') + '">' + (encima ? 'above average' : 'below average') + '</span>'
         : '') + '</p></div>';
 }
+// v6.9: etiquetas estandar del formulario MCS-150 para flags crgo_*
+// (lo no reconocido se muestra con el sufijo crudo: nada se pierde)
+var CARGO_LBL = {genfreight:'General Freight', household:'Household Goods',
+  metalsheet:'Metal: Sheets, Coils, Rolls', motorveh:'Motor Vehicles',
+  drivetow:'Drive Away / Tow Away', logpole:'Logs, Poles, Beams, Lumber',
+  bldgmat:'Building Materials', mobilehome:'Mobile Homes',
+  machlrg:'Machinery, Large Objects', produce:'Fresh Produce',
+  liqgas:'Liquids / Gases', intermodal:'Intermodal Containers',
+  passengers:'Passengers', oilfield:'Oilfield Equipment', livestock:'Livestock',
+  grainfeed:'Grain, Feed, Hay', coalcoke:'Coal / Coke', meat:'Meat',
+  garbage:'Garbage / Refuse', usmail:'US Mail', chem:'Chemicals',
+  drybulk:'Commodities Dry Bulk', coldfood:'Refrigerated Food',
+  beverages:'Beverages', paperprod:'Paper Products', utility:'Utilities',
+  farmsupp:'Agricultural / Farm Supplies', construct:'Construction',
+  waterwell:'Water Well', cargoothr:'Other'};
+function etiquetaCargo(c){ return CARGO_LBL[String(c)] || String(c).toUpperCase(); }
+// v6.9: '3232891777' -> '(323) 289-1777'; otros formatos se muestran tal cual
+function fmtTel(t){
+  var d = String(t || '').replace(/\D/g, '');
+  if (d.length === 10) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+  return String(t || '');
+}
+// v6.9: VIN clicable -> decoder oficial NHTSA (nueva pestana)
+function vinLink(vin){
+  if (!vin) return '';
+  return '<a class="vinlink" target="_blank" rel="noopener" href="https://vpic.nhtsa.dot.gov/decoder/Decoder?VIN=' +
+    encodeURIComponent(vin) + '">' + esc(vin) + '</a>';
+}
+// v6.9: "CLE ELUM WA" + st "WA" => sin duplicar el estado
+function lugarInsp(loc, st){
+  loc = String(loc || ''); st = String(st || '');
+  if (!loc) return esc(st);
+  if (!st || loc.toUpperCase().indexOf(st.toUpperCase()) > -1) return esc(loc);
+  return esc(loc + ', ' + st);
+}
+// v6.9: indice vin -> item de flota (para ano/tipo en la tabla de equipo)
+function mapaFlota(ins){
+  var m = {};
+  if (ins && ins.fleet && ins.fleet.list) ins.fleet.list.forEach(function(f){ m[f.vin] = f; });
+  return m;
+}
+// v6.9: "2015 GREAT DANE TRAILERS Great Dane Trailers" => sin modelo redundante
+function lineaVehiculo(f){
+  var mk = String(f.mk || ''), md = String(f.md || '');
+  if (md && mk.toUpperCase().indexOf(md.toUpperCase()) > -1) md = '';
+  return [f.y, mk, md].filter(Boolean).join(' ');
+}
 // v6.8 (Fase 3): niveles CVSA estandar (universales, no mapeo propio)
 var NIVELES_INSP = {1:'Full', 2:'Walk-Around', 3:'Driver-Only', 4:'Special',
                     5:'Vehicle-Only', 6:'Radioactive'};
@@ -1285,7 +1359,7 @@ function unidadViol(u, unidades){
   if (!u) return '';
   var mk = '';
   (unidades || []).forEach(function(x){ if (String(x.n) === String(u)) mk = x.mk || ''; });
-  return 'Unit ' + esc(String(u)) + (mk ? ' \u00b7 ' + esc(mk) : '');
+  return 'Vehicle \u00b7 Unit ' + esc(String(u)) + (mk ? ' (' + esc(mk) + ')' : '');
 }
 // v6.8 (Fase 3): tab Inspections — historial de 36 meses con
 // violaciones textuales oficiales. Tolerancia total: JSON pre-Fase 3
@@ -1305,9 +1379,18 @@ function cuerpoInspecciones(ins){
       '<p class="ocap" style="margin:0;text-align:center">Common for new or small carriers \u2014 fewer miles, fewer stops.</p>';
     return H;
   }
-  H += '<p class="ocap" style="margin:0 0 10px">' + ip.n + ' inspection' + (ip.n === 1 ? '' : 's') +
-    ' \u00b7 last ' + (ip.win_m || 36) + ' months' +
-    (ip.list.length < ip.n ? ' \u00b7 showing latest ' + ip.list.length : '') + '</p>';
+  // v6.9: resumen arriba (estilo dotsearch) con la data visible
+  var totV = 0, totO = 0;
+  ip.list.forEach(function(x){ totV += (x.t || 0); totO += (x.o || 0); });
+  H += '<div class="icard"><p class="label">Summary \u00b7 last ' + (ip.win_m || 36) + ' months</p>' +
+    '<div class="cstats" style="grid-template-columns:repeat(3,1fr)">' +
+      '<div class="cs"><b>' + ip.n + '</b><span>Inspections</span></div>' +
+      '<div class="cs"><b>' + totV + '</b><span>Violations</span></div>' +
+      '<div class="cs"><b>' + totO + '</b><span>OOS</span></div>' +
+    '</div>' +
+    (ip.list.length < ip.n ? '<p class="ocap" style="margin:8px 0 0">Showing latest ' +
+      ip.list.length + ' of ' + ip.n + '.</p>' : '') + '</div>';
+  var flota = mapaFlota(ins);
   if (ip.deg) {
     H += '<div class="iband amber">Some inspection details could not be loaded \u2014 they refresh automatically.</div>';
   }
@@ -1316,20 +1399,36 @@ function cuerpoInspecciones(ins){
     H += '<div class="icard">' +
       '<div class="inh">' +
         '<div><b>' + esc(fechaIso(x.d) || x.d || '-') + '</b>' +
-          '<span class="inloc">' + esc([x.loc, x.st].filter(Boolean).join(', ')) + '</span></div>' +
+          '<span class="inloc">' + lugarInsp(x.loc, x.st) + '</span></div>' +
         '<div class="inbdg">' +
           (limpio ? '<span class="obadge ok">Clean</span>'
                   : '<span class="obadge ' + (x.o > 0 ? 'bad' : 'amb') + '">' +
                       x.t + ' violation' + (x.t === 1 ? '' : 's') + '</span>') +
           (x.o > 0 ? '<span class="obadge bad">OOS</span>' : '') +
         '</div></div>' +
-      (x.lvl ? '<p class="ocap" style="margin:2px 0 0">' + nivelInsp(x.lvl) + '</p>' : '');
+      '<p class="ocap" style="margin:2px 0 0">' +
+        [nivelInsp(x.lvl), (x.rep ? 'Report ' + esc(x.rep) : '')].filter(Boolean).join(' \u00b7 ') + '</p>';
+    // v6.9: equipo inspeccionado (ano/tipo via flota decodificada, VIN clicable, placa)
+    if (x.u && x.u.length) {
+      H += '<div class="vlist">';
+      x.u.forEach(function(u){
+        var f = (u.vin && flota[u.vin]) || {};
+        var linea = lineaVehiculo({y: f.y, mk: u.mk || f.mk, md: f.md});
+        H += '<div class="eqrow"><div><b>' + esc(linea || u.mk || '-') + '</b>' +
+          '<span class="eqmeta">' + [
+            (f.t ? esc(f.t) : ''),
+            (u.lic ? esc((u.lst ? u.lst + ' ' : '') + u.lic) : '')
+          ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
+          (u.vin ? vinLink(u.vin) : '') + '</div>';
+      });
+      H += '</div>';
+    }
     if (x.v && x.v.length) {
       H += '<div class="vlist">';
       x.v.forEach(function(v){
         H += '<div class="vitem' + (v.o ? ' voos' : '') + '">' +
-          '<div class="vd">' + esc(v.d || v.c || '') +
-            (v.o ? ' <span class="vtag bad">OUT OF SERVICE</span>' : '') + '</div>' +
+          '<div class="inh"><div class="vd">' + esc(v.d || v.c || '') + '</div>' +
+            '<span class="vchip ' + (v.o ? 'oos' : 'warn') + '">' + (v.o ? 'OOS' : 'Warning') + '</span></div>' +
           '<div class="vm">' + esc(v.c || '') +
             (unidadViol(v.u, x.u) ? ' \u00b7 ' + unidadViol(v.u, x.u) : '') + '</div>' +
         '</div>';
@@ -1380,6 +1479,26 @@ function cuerpoCarrier(ins){
           '<span class="achip ' + aBrk[1] + '">Broker: ' + aBrk[0] + '</span>' +
         '</div>') + '</div>';
 
+  // 2b) v6.9: contactos federales del carrier (Census MCS-150).
+  // Solo pinta si el motor trajo algo — mapeo tolerante en v24.7.
+  if (m && (m.off1 || m.off2 || m.tel || m.em || m.addr || m.add || m.cargo || m.cls || m.hm)) {
+    var cls = m.cls ? String(m.cls).split(';').map(function(s){
+      return s.trim().toLowerCase().replace(/\b[a-z]/g, function(c){ return c.toUpperCase(); });
+    }).filter(Boolean).join(', ') : '';
+    H += '<div class="icard"><p class="label">Company contacts \u00b7 FMCSA registration</p>' +
+      (m.off1 ? '<div class="drow"><span>Officer</span><b>' + esc(m.off1) + '</b></div>' : '') +
+      (m.off2 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
+      (m.tel ? '<div class="drow"><span>Phone</span><b><a href="tel:' + esc(String(m.tel).replace(/\D/g,'')) + '" style="color:inherit">' + esc(fmtTel(m.tel)) + '</a></b></div>' : '') +
+      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all">' + esc(m.em) + '</b></div>' : '') +
+      (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right">' + esc(m.addr) + '</b></div>' : '') +
+      (m.add ? '<div class="drow"><span>DOT active since</span><b>' + esc(fechaIso(m.add)) + '</b></div>' : '') +
+      (cls ? '<div class="drow"><span>Classification</span><b style="text-align:right">' + esc(cls) + '</b></div>' : '') +
+      (m.cargo && m.cargo.length ? '<div class="drow"><span>Cargo carried</span><b style="text-align:right">' +
+        esc(m.cargo.map(etiquetaCargo).join(', ')) + '</b></div>' : '') +
+      (m.hm ? '<div class="drow" style="border-bottom:0"><span>HazMat</span><b>' + (m.hm === 'Y' ? 'Authorized' : 'Not Authorized') + '</b></div>' : '') +
+      '<p class="ocap" style="margin:6px 0 0">From the carrier\u2019s federal MCS-150 filing \u2014 compare with what the lead provided.</p></div>';
+  }
+
   // 3) Safety: barras OOS + rating
   H += '<div class="icard"><p class="label">Out of service rates \u00b7 last 24 months</p>' +
     barraOos('Driver OOS', p.oos && p.oos.d) +
@@ -1409,10 +1528,13 @@ function cuerpoCarrier(ins){
   if (fl && fl.list && fl.list.length) {
     H += '<div class="icard"><p class="label">Fleet \u00b7 seen in roadside inspections</p>';
     fl.list.forEach(function(f){
-      var linea = [f.y, f.mk, f.md].filter(Boolean).join(' ');
-      H += '<div class="fitem"><div><b>' + esc(linea || f.mk || '-') + '</b>' +
-        (f.t ? '<span class="ftype">' + esc(f.t) + '</span>' : '') + '</div>' +
-        '<div class="fvin">' + esc(f.vin) + '</div></div>';
+      var linea = lineaVehiculo(f);
+      H += '<div class="fitem"><div><b>' + (linea ? esc(linea) : esc(f.mk || '-')) + '</b>' +
+        '<span class="ftype">' + [
+          (f.t ? esc(f.t) : ''),
+          (f.lic ? esc((f.lst ? f.lst + ' ' : '') + f.lic) : '')
+        ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
+        vinLink(f.vin) + '</div>';
     });
     H += '<p class="ocap" style="margin:8px 0 0">Vehicles seen in roadside inspections \u2014 may not be the full fleet.</p></div>';
   } else if (ins.insp && ins.insp.n > 0) {
