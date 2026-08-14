@@ -9,6 +9,15 @@
 <style>
 /* ============================================================
    LEAD PANEL v6.10 — ESTRUCTURA DOTSEARCH-LIKE (motor v24.8).
+   v6.10c: split por inspeccion "N Driver / N Vehicle / N Hazmat"
+   (dv/vv/hv que el motor v24.7 ya guardaba y el panel no pintaba);
+   Email con mailto: y Address con link a Google Maps en contactos.
+   v6.10b: Summary de Inspections con breakdown por nivel CVSA y
+   estados donde inspeccionaron (computado 100% local); tarjeta
+   "Fleet & drivers - MCS-150" en Carrier (trk/cdl/di/din del
+   Census, nombres verificados con sonda). Referencia estructural:
+   HTML de dotsearch aportado por Rodrigo — solo arquitectura de
+   informacion; markup y estilos propios.
    v6.10: (1) VIN clicable = ACORDEON INLINE en Fleet (specs del
    vehiculo: tipo/ano/GVWR/placa/VIN + violaciones registradas de
    ESE vehiculo, cruce 100% local) — se elimina el link externo a
@@ -1448,7 +1457,22 @@ function cuerpoInspecciones(ins){
       '<div class="cs"><b>' + totO + '</b><span>OOS</span></div>' +
     '</div>' +
     (ip.list.length < ip.n ? '<p class="ocap" style="margin:8px 0 0">Showing latest ' +
-      ip.list.length + ' of ' + ip.n + '.</p>' : '') + '</div>';
+      ip.list.length + ' of ' + ip.n + '.</p>' : '') +
+    (function(){ // v6.10: breakdown por nivel + estados (computado local)
+      var porNivel = {}, estados = {};
+      ip.list.forEach(function(x){
+        if (x.lvl) porNivel[x.lvl] = (porNivel[x.lvl] || 0) + 1;
+        if (x.st) estados[x.st] = 1;
+      });
+      var nivs = Object.keys(porNivel).sort().map(function(l){
+        return nivelInsp(Number(l)) + ' \u00d7 ' + porNivel[l];
+      });
+      var sts = Object.keys(estados).sort();
+      var s = '';
+      if (nivs.length) s += '<div class="drow"><span>By level</span><b style="text-align:right">' + esc(nivs.join(' \u00b7 ')) + '</b></div>';
+      if (sts.length) s += '<div class="drow" style="border-bottom:0"><span>Inspected in</span><b>' + esc(sts.join(', ')) + '</b></div>';
+      return s;
+    })() + '</div>';
   var flota = mapaFlota(ins);
   if (ip.deg) {
     H += '<div class="iband amber">Some inspection details could not be loaded \u2014 they refresh automatically.</div>';
@@ -1466,7 +1490,10 @@ function cuerpoInspecciones(ins){
           (x.o > 0 ? '<span class="obadge bad">OOS</span>' : '') +
         '</div></div>' +
       '<p class="ocap" style="margin:2px 0 0">' +
-        [nivelInsp(x.lvl), (x.rep ? 'Report ' + esc(x.rep) : '')].filter(Boolean).join(' \u00b7 ') + '</p>';
+        [nivelInsp(x.lvl), (x.rep ? 'Report ' + esc(x.rep) : ''),
+         (x.t > 0 ? [(x.dv ? x.dv + ' Driver' : ''), (x.vv ? x.vv + ' Vehicle' : ''),
+                     (x.hv ? x.hv + ' Hazmat' : '')].filter(Boolean).join(' / ') : '')
+        ].filter(Boolean).join(' \u00b7 ') + '</p>';
     // v6.9: equipo inspeccionado (ano/tipo via flota decodificada, VIN clicable, placa)
     if (x.u && x.u.length) {
       H += '<div class="vlist">';
@@ -1552,10 +1579,22 @@ function cuerpoCarrier(ins){
       (m.off1 ? '<div class="drow"><span>Officer</span><b>' + esc(m.off1) + '</b></div>' : '') +
       (m.off2 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
       (m.tel ? '<div class="drow"><span>Phone</span><b><a href="tel:' + esc(String(m.tel).replace(/\D/g,'')) + '" style="color:inherit">' + esc(fmtTel(m.tel)) + '</a></b></div>' : '') +
-      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all">' + esc(m.em) + '</b></div>' : '') +
-      (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right">' + esc(m.addr) + '</b></div>' : '') +
+      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all"><a href="mailto:' + esc(m.em) + '" style="color:inherit">' + esc(m.em) + '</a></b></div>' : '') +
+      (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right"><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.addr) + '" style="color:inherit">' + esc(m.addr) + '</a></b></div>' : '') +
       (m.add ? '<div class="drow" style="border-bottom:0"><span>DOT active since</span><b>' + esc(fechaIso(m.add)) + '</b></div>' : '') +
       '<p class="ocap" style="margin:6px 0 0">From the carrier\u2019s federal MCS-150 filing \u2014 compare with what the lead provided.</p></div>';
+  }
+
+  // 2c) v6.10: resumen de flota y conductores del MCS-150 (Census)
+  if (m && (m.trk != null || m.cdl != null || m.di != null || m.din != null)) {
+    H += '<div class="icard">' + labelIco('truck', 'Fleet & drivers \u00b7 MCS-150') +
+      '<div class="cstats" style="grid-template-columns:repeat(' +
+        [m.trk, m.cdl, m.di, m.din].filter(function(x){ return x != null; }).length + ',1fr)">' +
+      (m.trk != null ? '<div class="cs"><b>' + m.trk + '</b><span>Trucks</span></div>' : '') +
+      (m.cdl != null ? '<div class="cs"><b>' + m.cdl + '</b><span>CDL drivers</span></div>' : '') +
+      (m.di != null ? '<div class="cs"><b>' + m.di + '</b><span>Interstate</span></div>' : '') +
+      (m.din != null ? '<div class="cs"><b>' + m.din + '</b><span>Intrastate</span></div>' : '') +
+      '</div></div>';
   }
 
   // 3) Safety: barras OOS + rating
