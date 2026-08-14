@@ -8,20 +8,24 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.3 — DETALLE PROFESIONAL EN DESKTOP (motor v24.4;
-   solo panel, sin Nueva version del webhook).
-   v6.3: el detalle del lead deja de ser "movil estirado" en >=900px:
-   - Un solo ancho de referencia (760px) para hero interior, acciones
-     y tarjetas — se acabo el apilado de tres anchos distintos.
-   - Grilla dos columnas estilo dotsearch bajo notas + insurance:
-     principal (Update status) a la izquierda, lateral (Full details
-     abierto por defecto en desktop, Your activity) a la derecha.
-   - Tarjetas con el lenguaje del modal: titulos uppercase con
-     divisor (notas, Full details, Update status, Your activity).
-   - Modal: cuando el carrier no registra autoridad for-hire (chips
-     vacios, tipico intrastate) se muestra UNA linea explicativa en
-     vez de tres chips "-". Ancho desktop 640px.
-   - MOVIL: cero cambios de layout — el flujo de Jenny queda intacto.
+   LEAD PANEL v6.3.1 — DETALLE ESTILO DOTSEARCH EN DESKTOP (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.3.1 corrige el desastre de v6.3 (columna fija que quedaba
+   VACIA en modo admin porque Update status no existe, y reorden del
+   DOM movil). Nueva estructura, decidida por viewport EN EL RENDER:
+   - DESKTOP (>=900px): hero como TARJETA redondeada contenida (como
+     el banner de dotsearch) con la info del lead a la izquierda y
+     Call/WhatsApp a la derecha; debajo, grilla principal (1fr) +
+     lateral (320px). Las tarjetas se REPARTEN segun existan:
+     principal = notas + insurance + update status; lateral = full
+     details (abierto) + activity. Si la principal queda vacia (modo
+     admin sin notas), la lateral pasa a ser la columna unica
+     centrada — jamas una columna fantasma.
+   - MOVIL: EXACTAMENTE el flujo original de Jenny — orden del DOM
+     notas > insurance > activity > details > status, botones
+     solapados al hero, cero cambios (se revierte el reorden v6.3).
+   - Tarjetas con el lenguaje del modal (titulos uppercase con
+     divisor) y modal: autoridad vacia = linea explicativa (v6.3).
    ------------------------------------------------------------
    LEAD PANEL v6.2 — FASE 2: CARRIER PROFILE (requiere motor v24.4).
    v6.2: el modal de Insurance se reestructura estilo dotsearch,
@@ -395,19 +399,18 @@ textarea{height:62px;resize:vertical}
   #rows .lead{margin-bottom:0;min-width:0}
   #rows .empty{grid-column:1/-1}
   .otpwrap{max-width:620px;margin:0 auto}
-  /* v6.3: DETALLE en desktop — un solo ancho de referencia (760px)
-     para hero interior, acciones y tarjetas, y grilla dos columnas
-     estilo dotsearch: principal (status) + lateral (details/activity).
-     El orden del DOM no cambia: solo CSS — movil intacto. */
-  .hero.det-hero .hinner{max-width:760px;margin:0 auto}
-  .wrap.det{max-width:760px;margin:0 auto}
-  .acts{max-width:760px;margin:-32px auto 18px;padding:0 0;gap:12px}
-  .acts .act{flex:0 1 260px}
-  .wrap.det{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:0 16px;align-items:start}
-  .wrap.det>.notes, .wrap.det>.insrow{grid-column:1/-1}
-  .wrap.det>.statuscard{grid-column:1;grid-row:3}
-  .wrap.det>.side{grid-column:2;grid-row:3;min-width:0}
-  .wrap.det>.side .card{margin-bottom:12px}
+  /* v6.3.1: DETALLE en desktop, estructura dotsearch. El JS arma un
+     DOM distinto por viewport: aqui solo se estilan .det-hero (hero
+     tarjeta con acciones a la derecha) y .dmain/.dside (grilla). */
+  .hero.det-hero{margin:20px 36px 0;border-radius:18px;padding:26px 30px 26px}
+  .hero.det-hero .hinner{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
+  .hero.det-hero .hmain{min-width:0}
+  .hacts{display:flex;gap:10px;flex:none;margin-bottom:2px}
+  .hacts .act{flex:none;padding:13px 38px}
+  .wrap.det{margin-top:16px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:0 16px;align-items:start}
+  .wrap.det.solo{display:block;max-width:720px;margin-left:auto;margin-right:auto}
+  .dmain,.dside{min-width:0}
+  .dside .card, .dside details.card{margin-bottom:12px}
   .savebar{max-width:940px}
   .savebar .save{max-width:620px;margin:0 auto}
 }
@@ -722,7 +725,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.3</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.3.1</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1234,21 +1237,24 @@ function verDetalle(id, t, desdeLista){
 // lista. Se reemplaza completo cuando llega api=lead.
 function pintarEsqueleto(l){
   var chips = (l.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
-  app.innerHTML =
-    '<div class="hero det-hero"><div class="hinner">' +
+  var eDesk = !!(window.matchMedia && matchMedia('(min-width:900px)').matches);
+  var hInfo =
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(l.id) + (l.sent ? ' · Sent ' + esc(l.sent) : '') +
         (ADM ? ' · ADMIN' : '') + '</span>' +
       pillEstado(l.status) + '</div>' +
       '<h1>' + esc(l.name || '-') + '</h1>' +
       '<p class="biz">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</p>' +
-      (chips ? '<div class="chips">' + chips + '</div>' : '') +
-    '</div></div>' +
-    '<div class="acts">' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '');
+  var hActs =
       '<a class="act call" id="btn-call-sk" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
-      '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>' +
-    '</div>' +
-    '<div class="wrap det"><div class="spin" style="margin:44px auto"></div></div>';
+      '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>';
+  app.innerHTML =
+    (eDesk
+      ? '<div class="hero det-hero"><div class="hinner"><div class="hmain">' + hInfo + '</div>' +
+        '<div class="hacts">' + hActs + '</div></div></div>'
+      : '<div class="hero det-hero">' + hInfo + '</div><div class="acts">' + hActs + '</div>') +
+    '<div class="wrap det solo"><div class="spin" style="margin:44px auto"></div></div>';
   document.getElementById('btn-lista').onclick = irALeads;
   // v5: un Call desde el esqueleto también cuenta (el detalle aún carga)
   var bsk = document.getElementById('btn-call-sk');
@@ -1353,8 +1359,12 @@ function render(){
         '<p id="err" class="errline"></p>' +
       '</div>';
 
-  app.innerHTML =
-    '<div class="hero det-hero"><div class="hinner">' +
+  // v6.3.1: layout decidido por viewport al renderizar. Movil =
+  // flujo original de Jenny, intacto. Desktop = hero-tarjeta con
+  // acciones a la derecha + grilla principal/lateral que se adapta
+  // a las tarjetas que EXISTAN (modo admin incluido).
+  var esDesk = !!(window.matchMedia && matchMedia('(min-width:900px)').matches);
+  var heroInfo =
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
         (d.calls ? ' · ' + d.calls + (d.calls === 1 ? ' call' : ' calls') : '') +
@@ -1363,20 +1373,30 @@ function render(){
       '<h1>' + esc(d.name) + '</h1>' +
       '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
       (chips ? '<div class="chips">' + chips + '</div>' : '') +
-      (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '') +
-    '</div></div>' +
-
-    '<div class="acts">' +
+      (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '');
+  var actsHtml =
       '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
-      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>' +
-    '</div>' +
-
-    '<div class="wrap det">' +
-      notas + filaSeguroDetalle(d) +
-      tarjetaEstado +
-      '<div class="side">' + actividad + det + '</div>' +
-    '</div>' +
-
+      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>';
+  var hero, cuerpo;
+  if (esDesk) {
+    hero = '<div class="hero det-hero"><div class="hinner">' +
+      '<div class="hmain">' + heroInfo + '</div>' +
+      '<div class="hacts">' + actsHtml + '</div></div></div>';
+    var dMain = [notas, filaSeguroDetalle(d), tarjetaEstado].filter(function(x){ return !!x; });
+    var dLado = [actividad, det].filter(function(x){ return !!x; });
+    if (!dMain.length) { dMain = dLado; dLado = []; } // jamas una columna fantasma
+    cuerpo = '<div class="wrap det' + (dLado.length ? '' : ' solo') + '">' +
+      '<div class="dmain">' + dMain.join('') + '</div>' +
+      (dLado.length ? '<div class="dside">' + dLado.join('') + '</div>' : '') +
+      '</div>';
+  } else {
+    hero = '<div class="hero det-hero">' + heroInfo + '</div>' +
+      '<div class="acts">' + actsHtml + '</div>';
+    cuerpo = '<div class="wrap det">' +
+      notas + filaSeguroDetalle(d) + actividad + det + tarjetaEstado +
+      '</div>';
+  }
+  app.innerHTML = hero + cuerpo +
     (esAdmin ? '' : '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>');
 
   sel = null; selLabel = '';
