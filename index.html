@@ -8,6 +8,11 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.13 — VIN EN LA FUENTE DEL PANEL (motor v24.8).
+   v6.13: los VINs dejan la monoespaciada y usan la tipografia del
+   panel (bold, letter-spacing .4px) — los VINs excluyen I/O/Q por
+   estandar, asi que la mono no aporta y rompia la consistencia
+   visual (feedback de Rodrigo 14-ago).
    LEAD PANEL v6.12 — PULIDO UX (motor v24.8, sin cambios de motor).
    NOTA DE VERSIONADO: v6.11 QUEMADA — existio un "v6.11" de
    procedencia no verificada durante el incidente del 14-ago-2026
@@ -552,7 +557,7 @@ textarea{height:62px;resize:vertical}
 .eqrow:last-child{border-bottom:0}
 .eqrow b{font-size:12px;color:#101828}
 .eqmeta{display:block;font-size:10px;color:#98a2b3;font-weight:700;margin-top:1px}
-.vinlink{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#1d4ed8;text-decoration:underline;text-underline-offset:2px;white-space:nowrap}
+.vinlink{font-size:11px;font-weight:700;letter-spacing:.4px;color:#1d4ed8;text-decoration:underline;text-underline-offset:2px}
 /* v6.8: tab Inspections + flota */
 .inh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
 .inh b{font-size:13.5px;color:#101828}
@@ -572,7 +577,7 @@ textarea{height:62px;resize:vertical}
 .fitem:last-child{border-bottom:0}
 .fitem b{font-size:12.5px;color:#101828}
 .ftype{display:block;font-size:10px;color:#98a2b3;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:1px}
-.fvin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#667085}
+.fvin{font-size:11px;font-weight:700;letter-spacing:.4px;color:#667085}
 /* v6.2: crash boxes */
 .cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .cs{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}
@@ -952,7 +957,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.12</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.13</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1665,7 +1670,7 @@ function cuerpoCarrier(ins){
         (f.y ? '<div class="drow"><span>Model year</span><b>' + esc(f.y) + '</b></div>' : '') +
         (f.g ? '<div class="drow"><span>GVWR class</span><b style="text-align:right">' + esc(f.g) + '</b></div>' : '') +
         (f.lic ? '<div class="drow"><span>Plate</span><b>' + esc((f.lst ? f.lst + ' ' : '') + f.lic) + '</b></div>' : '') +
-        '<div class="drow" style="border-bottom:0"><span>VIN</span><b style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">' + esc(f.vin) + '</b></div>' +
+        '<div class="drow" style="border-bottom:0"><span>VIN</span><b style="letter-spacing:.4px">' + esc(f.vin) + '</b></div>' +
         (viols.length
           ? '<div class="vlist">' + viols.map(function(v){
               return '<div class="vitem' + (v.o ? ' voos' : '') + '">' +
