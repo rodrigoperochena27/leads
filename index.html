@@ -8,6 +8,16 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.8 — INSURANCE INTEL FASE 3 (motor v24.6).
+   v6.8: tercera tab "Inspections" en el modal (historial 36 meses:
+   fecha, ubicacion, nivel CVSA, badges Clean/violaciones/OOS y cada
+   violacion con su descripcion oficial, codigo y unidad afectada
+   [Unit n - marca / Driver]); seccion "Fleet - seen in roadside
+   inspections" en la tab Carrier (VINs decodificados via vPIC:
+   ano/marca/modelo/tipo) con disclaimer de MUESTRA. Tolerancia:
+   JSON sin .insp => "not loaded yet" (el refresco semanal lo trae);
+   insp.deg => banda ambar honesta; n:0 => "no inspections on
+   record" (distinto de red caida). Contrato api=save INTACTO.
    LEAD PANEL v6.7 — PANTALLA DE INICIO (motor v24.5).
    v6.7: la bienvenida/OTP deja de ser una franja con una tarjeta
    descolgada: ahora es una pantalla completa con el gradiente navy
@@ -469,6 +479,26 @@ textarea{height:62px;resize:vertical}
 .ocap{font-size:11.5px;color:var(--sub);font-weight:600;line-height:1.45}
 .ocap .below{color:#12805c;font-weight:700}
 .ocap .above{color:#b42318;font-weight:700}
+/* v6.8: tab Inspections + flota */
+.inh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.inh b{font-size:13.5px;color:#101828}
+.inloc{display:block;font-size:11.5px;color:var(--sub);font-weight:600;margin-top:1px}
+.inbdg{display:flex;gap:5px;flex:none}
+.obadge.amb{background:#fff8e6;color:#a15c00}
+.iband.amber{background:#fff8e6;color:#a15c00}
+.vlist{margin-top:8px;border-top:1px solid #f2f4f7}
+.vitem{padding:8px 0;border-bottom:1px solid #f2f4f7}
+.vitem:last-child{border-bottom:0}
+.vitem.voos .vd{color:#b42318}
+.vd{font-size:12.5px;font-weight:700;color:#101828;line-height:1.4}
+.vm{font-size:11px;color:#98a2b3;font-weight:700;margin-top:2px}
+.vtag{font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:999px;letter-spacing:.4px;vertical-align:1px}
+.vtag.bad{background:#fef3f2;color:#b42318}
+.fitem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f7}
+.fitem:last-child{border-bottom:0}
+.fitem b{font-size:12.5px;color:#101828}
+.ftype{display:block;font-size:10px;color:#98a2b3;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:1px}
+.fvin{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;color:#667085}
 /* v6.2: crash boxes */
 .cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .cs{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}
@@ -848,7 +878,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.7</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.8</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1039,7 +1069,8 @@ function armarSeguroSheet(sh, dot, ins){
   if (ins && conTabCarrier) {
     H += '<div class="stabs">' +
       '<button type="button" class="stab on" data-tab="ins">Insurance</button>' +
-      '<button type="button" class="stab" data-tab="car">Carrier</button></div>';
+      '<button type="button" class="stab" data-tab="car">Carrier</button>' +
+      '<button type="button" class="stab" data-tab="insp">Inspections</button></div>';
   }
   H += '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
   sh.innerHTML = H;
@@ -1051,7 +1082,9 @@ function armarSeguroSheet(sh, dot, ins){
       for (var k = 0; k < tabs.length; k++) tabs[k].classList.remove('on');
       yo.classList.add('on');
       var body = sh.querySelector('.sbody');
-      body.innerHTML = (yo.getAttribute('data-tab') === 'car') ? cuerpoCarrier(ins) : cuerpoSeguro(ins);
+      var cual = yo.getAttribute('data-tab');
+      body.innerHTML = (cual === 'car') ? cuerpoCarrier(ins)
+                     : (cual === 'insp') ? cuerpoInspecciones(ins) : cuerpoSeguro(ins);
       body.scrollTop = 0;
     });
   }
@@ -1240,6 +1273,77 @@ function barraOos(titulo, o){
         ? ' \u00b7 <span class="' + (encima ? 'above' : 'below') + '">' + (encima ? 'above average' : 'below average') + '</span>'
         : '') + '</p></div>';
 }
+// v6.8 (Fase 3): niveles CVSA estandar (universales, no mapeo propio)
+var NIVELES_INSP = {1:'Full', 2:'Walk-Around', 3:'Driver-Only', 4:'Special',
+                    5:'Vehicle-Only', 6:'Radioactive'};
+function nivelInsp(l){
+  return l ? ('Level ' + l + (NIVELES_INSP[l] ? ' \u00b7 ' + NIVELES_INSP[l] : '')) : '';
+}
+// v6.8: nombre de la unidad de una violacion ("Driver" / "Unit 1 \u00b7 PETERBILT")
+function unidadViol(u, unidades){
+  if (String(u).toUpperCase() === 'D') return 'Driver';
+  if (!u) return '';
+  var mk = '';
+  (unidades || []).forEach(function(x){ if (String(x.n) === String(u)) mk = x.mk || ''; });
+  return 'Unit ' + esc(String(u)) + (mk ? ' \u00b7 ' + esc(mk) : '');
+}
+// v6.8 (Fase 3): tab Inspections — historial de 36 meses con
+// violaciones textuales oficiales. Tolerancia total: JSON pre-Fase 3
+// (sin .insp) => "not loaded yet" (el refresco semanal lo trae);
+// insp.deg => aviso honesto de detalle incompleto; n:0 => "sin
+// inspecciones" (que NO es lo mismo que red caida).
+function cuerpoInspecciones(ins){
+  var ip = ins && ins.insp;
+  if (!ip) {
+    return '<p class="empty">Inspection history not loaded yet.<br>' +
+      'It refreshes automatically \u2014 reopen in a few minutes.</p>';
+  }
+  var H = '';
+  if (!ip.n) {
+    H += '<p class="empty">No roadside inspections on record in the last ' +
+      (ip.win_m || 36) + ' months.</p>' +
+      '<p class="ocap" style="margin:0;text-align:center">Common for new or small carriers \u2014 fewer miles, fewer stops.</p>';
+    return H;
+  }
+  H += '<p class="ocap" style="margin:0 0 10px">' + ip.n + ' inspection' + (ip.n === 1 ? '' : 's') +
+    ' \u00b7 last ' + (ip.win_m || 36) + ' months' +
+    (ip.list.length < ip.n ? ' \u00b7 showing latest ' + ip.list.length : '') + '</p>';
+  if (ip.deg) {
+    H += '<div class="iband amber">Some inspection details could not be loaded \u2014 they refresh automatically.</div>';
+  }
+  ip.list.forEach(function(x){
+    var limpio = (x.t === 0);
+    H += '<div class="icard">' +
+      '<div class="inh">' +
+        '<div><b>' + esc(fechaIso(x.d) || x.d || '-') + '</b>' +
+          '<span class="inloc">' + esc([x.loc, x.st].filter(Boolean).join(', ')) + '</span></div>' +
+        '<div class="inbdg">' +
+          (limpio ? '<span class="obadge ok">Clean</span>'
+                  : '<span class="obadge ' + (x.o > 0 ? 'bad' : 'amb') + '">' +
+                      x.t + ' violation' + (x.t === 1 ? '' : 's') + '</span>') +
+          (x.o > 0 ? '<span class="obadge bad">OOS</span>' : '') +
+        '</div></div>' +
+      (x.lvl ? '<p class="ocap" style="margin:2px 0 0">' + nivelInsp(x.lvl) + '</p>' : '');
+    if (x.v && x.v.length) {
+      H += '<div class="vlist">';
+      x.v.forEach(function(v){
+        H += '<div class="vitem' + (v.o ? ' voos' : '') + '">' +
+          '<div class="vd">' + esc(v.d || v.c || '') +
+            (v.o ? ' <span class="vtag bad">OUT OF SERVICE</span>' : '') + '</div>' +
+          '<div class="vm">' + esc(v.c || '') +
+            (unidadViol(v.u, x.u) ? ' \u00b7 ' + unidadViol(v.u, x.u) : '') + '</div>' +
+        '</div>';
+      });
+      H += '</div>';
+    } else if (!limpio && ip.deg) {
+      H += '<p class="ocap" style="margin:6px 0 0">Violation details pending.</p>';
+    }
+    H += '</div>';
+  });
+  H += '<p class="ifoot">FMCSA roadside inspection data (updated daily) \u00b7 Updated ' +
+    esc(ins.updated_at || '') + '</p>';
+  return H;
+}
 function cuerpoCarrier(ins){
   var carrier = ins && ins.carrier;
   // Sin bloque carrier (JSON pre-v24.3 o QCMobile caido al enriquecer)
@@ -1298,6 +1402,23 @@ function cuerpoCarrier(ins){
       '<div class="cs"><b>' + cv(c.i) + '</b><span>Injury</span></div>' +
       '<div class="cs"><b>' + cv(c.tw) + '</b><span>Tow-away</span></div>' +
     '</div></div>';
+
+  // 4b) v6.8 (Fase 3): Flota vista en inspecciones (VINs + vPIC).
+  // Es una MUESTRA (solo unidades inspeccionadas), y el panel lo dice.
+  var fl = ins.fleet;
+  if (fl && fl.list && fl.list.length) {
+    H += '<div class="icard"><p class="label">Fleet \u00b7 seen in roadside inspections</p>';
+    fl.list.forEach(function(f){
+      var linea = [f.y, f.mk, f.md].filter(Boolean).join(' ');
+      H += '<div class="fitem"><div><b>' + esc(linea || f.mk || '-') + '</b>' +
+        (f.t ? '<span class="ftype">' + esc(f.t) + '</span>' : '') + '</div>' +
+        '<div class="fvin">' + esc(f.vin) + '</div></div>';
+    });
+    H += '<p class="ocap" style="margin:8px 0 0">Vehicles seen in roadside inspections \u2014 may not be the full fleet.</p></div>';
+  } else if (ins.insp && ins.insp.n > 0) {
+    H += '<div class="icard"><p class="label">Fleet \u00b7 seen in roadside inspections</p>' +
+      '<p class="ocap" style="margin:0">No VINs recorded in this carrier\u2019s inspections.</p></div>';
+  }
 
   // 5) Mileage / MCS-150 (Census; honesto si falta)
   H += '<div class="icard"><p class="label">Mileage info</p>' +
