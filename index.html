@@ -8,6 +8,18 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.12 — PULIDO UX (motor v24.8, sin cambios de motor).
+   NOTA DE VERSIONADO: v6.11 QUEMADA — existio un "v6.11" de
+   procedencia no verificada durante el incidente del 14-ago-2026
+   (en cuarentena, jamas entregado ni instalado); se salta el numero
+   para eliminar ambiguedad en el historial.
+   v6.12: (1) "INCOMPLETE VEHICLE" (termino vPIC para chasis-cabina)
+   se muestra como "TRUCK (CHASSIS)" — solo esa cadena exacta.
+   (2) Marca vPIC completa (FREIGHTLINER) sobre la abreviatura del
+   dataset (FRHT/FREIGHTLIN) en el equipo por inspeccion. (3) Si
+   Officer y Officer 2 del Census son identicos se muestra uno.
+   (4) Endurecimiento movil: wrap en filas de flota/equipo y
+   overflow-wrap en VINs para pantallas angostas (~360px).
    LEAD PANEL v6.10 — ESTRUCTURA DOTSEARCH-LIKE (motor v24.8).
    v6.10c: split por inspeccion "N Driver / N Vehicle / N Hazmat"
    (dv/vv/hv que el motor v24.7 ya guardaba y el panel no pintaba);
@@ -514,7 +526,10 @@ textarea{height:62px;resize:vertical}
 /* v6.10: iconos SVG inline (no emojis) + acordeon por vehiculo */
 .ic{width:14px;height:14px;vertical-align:-2px;margin-right:6px;flex:none}
 .label .ic{width:13px;height:13px;color:#98a2b3}
-.fitem{cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fitem{cursor:pointer;-webkit-tap-highlight-color:transparent;flex-wrap:wrap}
+.eqrow{flex-wrap:wrap}
+.fvin{overflow-wrap:anywhere;word-break:break-all;max-width:100%}
+@media (max-width:420px){ .fvin{font-size:9.5px} }
 .fitem .fvin{color:#1d4ed8}
 .fchev{flex:none;color:#98a2b3;transition:transform .18s ease}
 .fitem.open .fchev{transform:rotate(180deg)}
@@ -937,7 +952,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.10</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.12</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1390,6 +1405,11 @@ var CARGO_LBL = {genfreight:'General Freight', household:'Household Goods',
   farmsupp:'Agricultural / Farm Supplies', construct:'Construction',
   waterwell:'Water Well', cargoothr:'Other'};
 function etiquetaCargo(c){ return CARGO_LBL[String(c)] || String(c).toUpperCase(); }
+// v6.12: vPIC llama "INCOMPLETE VEHICLE" al chasis-cabina (M2, etc.);
+// para Jenny suena a dato roto. Solo se traduce ESA cadena exacta.
+function tipoVehiculo(t){
+  return String(t || '').toUpperCase() === 'INCOMPLETE VEHICLE' ? 'TRUCK (CHASSIS)' : (t || '');
+}
 // v6.9: '3232891777' -> '(323) 289-1777'; otros formatos se muestran tal cual
 function fmtTel(t){
   var d = String(t || '').replace(/\D/g, '');
@@ -1499,11 +1519,11 @@ function cuerpoInspecciones(ins){
       H += '<div class="vlist">';
       x.u.forEach(function(u){
         var f = (u.vin && flota[u.vin]) || {};
-        var linea = lineaVehiculo({y: f.y, mk: u.mk || f.mk, md: f.md});
+        var linea = lineaVehiculo({y: f.y, mk: f.mk || u.mk, md: f.md}); // v6.12: vPIC primero
         var esTrailer2 = /trailer/i.test(f.t || '');
         H += '<div class="eqrow"><div><b>' + ico(esTrailer2 ? 'trailer' : 'truck') + esc(linea || u.mk || '-') + '</b>' +
           '<span class="eqmeta">' + [
-            (f.t ? esc(f.t) : ''),
+            (f.t ? esc(tipoVehiculo(f.t)) : ''),
             (u.lic ? esc((u.lst ? u.lst + ' ' : '') + u.lic) : '')
           ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
           (u.vin ? '<span class="fvin" style="color:#667085">' + esc(u.vin) + '</span>' : '') + '</div>';
@@ -1577,7 +1597,7 @@ function cuerpoCarrier(ins){
   if (m && (m.off1 || m.off2 || m.tel || m.em || m.addr || m.add)) {
     H += '<div class="icard">' + labelIco('phone', 'Company contacts \u00b7 FMCSA registration') +
       (m.off1 ? '<div class="drow"><span>Officer</span><b>' + esc(m.off1) + '</b></div>' : '') +
-      (m.off2 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
+      (m.off2 && m.off2 !== m.off1 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
       (m.tel ? '<div class="drow"><span>Phone</span><b><a href="tel:' + esc(String(m.tel).replace(/\D/g,'')) + '" style="color:inherit">' + esc(fmtTel(m.tel)) + '</a></b></div>' : '') +
       (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all"><a href="mailto:' + esc(m.em) + '" style="color:inherit">' + esc(m.em) + '</a></b></div>' : '') +
       (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right"><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.addr) + '" style="color:inherit">' + esc(m.addr) + '</a></b></div>' : '') +
@@ -1632,7 +1652,7 @@ function cuerpoCarrier(ins){
       H += '<div class="fitem" id="fitem-' + i + '" onclick="toggleFlota(' + i + ')">' +
         '<div><b>' + ico(esTrailer ? 'trailer' : 'truck') + (linea ? esc(linea) : esc(f.mk || '-')) + '</b>' +
         '<span class="ftype">' + [
-          (f.t ? esc(f.t) : ''),
+          (f.t ? esc(tipoVehiculo(f.t)) : ''),
           (f.lic ? esc((f.lst ? f.lst + ' ' : '') + f.lic) : ''),
           (viols.length ? viols.length + ' violation' + (viols.length === 1 ? '' : 's') : '')
         ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
@@ -1641,7 +1661,7 @@ function cuerpoCarrier(ins){
           'stroke-linecap="round" stroke-linejoin="round" style="margin:0"><path d="M4 6l4 4 4-4"/></svg>' +
       '</div>' +
       '<div class="fdet" id="fdet-' + i + '">' +
-        (f.t ? '<div class="drow"><span>Type</span><b>' + esc(f.t) + '</b></div>' : '') +
+        (f.t ? '<div class="drow"><span>Type</span><b>' + esc(tipoVehiculo(f.t)) + '</b></div>' : '') +
         (f.y ? '<div class="drow"><span>Model year</span><b>' + esc(f.y) + '</b></div>' : '') +
         (f.g ? '<div class="drow"><span>GVWR class</span><b style="text-align:right">' + esc(f.g) + '</b></div>' : '') +
         (f.lic ? '<div class="drow"><span>Plate</span><b>' + esc((f.lst ? f.lst + ' ' : '') + f.lic) + '</b></div>' : '') +
