@@ -8,6 +8,23 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.2 — FASE 2: CARRIER PROFILE (requiere motor v24.4).
+   v6.2: el modal de Insurance se reestructura estilo dotsearch,
+   manteniendo paleta y tipografia del panel:
+   - Hero oscuro con el nombre legal del carrier (QCMobile), badges
+     DOT / MC y stat boxes grandes de POWER UNITS y DRIVERS.
+   - Dos tabs: Insurance (todo el contenido v6.1, intacto en logica)
+     y Carrier (Operation + Authority, Safety con barras OOS driver/
+     vehicle contra promedio nacional, Safety Rating honesto,
+     Crashes 24m, Mileage/MCS-150 del Census).
+   - Tolerancia total a faltantes: sin carrier.prof (JSON pre-v24.4
+     o cache en transicion) el tab dice "profile not loaded yet";
+     sin m150, "MCS-150 data not available"; carrier.exists false =>
+     el tab Carrier ni aparece; safetyRating null => "Not Available".
+   - Barras OOS: verde bajo el promedio nacional, rojo encima, con
+     marcador del promedio y conteo "X of Y inspections OOS".
+   - Cero emojis; retrocompatible con JSONs v24.0-v24.3.
+   ------------------------------------------------------------
    LEAD PANEL v6.1 — INSURANCE INTEL (requiere motor v24.3).
    v6.1: chip de lista minimo (texto fijo "FMCSA filing", el color
    cuenta la historia); banda roja "DOT not found" cuando QCMobile
@@ -286,6 +303,50 @@ textarea{height:62px;resize:vertical}
 .iht.rep{background:#eef4ff;color:#1d4ed8}.iht.can{background:#fef3f2;color:#b42318}
 .ifoot{font-size:11.5px;color:#98a2b3;text-align:center;padding:4px 4px 2px;line-height:1.6}
 .ifoot a{color:#5a6b85;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
+/* v6.2: titulos de seccion del modal con divisor (estructura dotsearch) */
+.icard .label{padding-bottom:8px;border-bottom:1px solid var(--line)}
+/* v6.2: hero del modal */
+.shero{flex:none;background:linear-gradient(135deg,#17233b 0%,#233553 100%);color:#fff;padding:16px 18px 14px;border-radius:20px 20px 0 0;position:relative}
+.shero .sclose{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.14);color:#fff}
+.shero .shname{font-size:18px;font-weight:800;line-height:1.2;margin:0 34px 3px 0;letter-spacing:.2px}
+.shero .shloc{font-size:12px;color:#cbd5e1;font-weight:600;margin:0 0 10px}
+.shero .shpills{display:flex;flex-wrap:wrap;gap:6px}
+.pchip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.3px}
+.pchip.ok{background:#12805c;color:#fff}
+.pchip.slate{background:rgba(255,255,255,.16);color:#e2e8f0}
+.pchip.red{background:#b42318;color:#fff}
+.shstats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.shs{background:#fff;border-radius:13px;padding:10px 8px;text-align:center}
+.shs b{display:block;font-size:22px;color:#17233b;line-height:1.1}
+.shs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
+/* v6.2: tabs */
+.stabs{flex:none;display:flex;background:#fff;border-bottom:1px solid var(--line)}
+.stab{flex:1;border:0;background:none;font-family:inherit;font-size:13.5px;font-weight:700;color:#667085;padding:12px 8px 10px;cursor:pointer;border-bottom:2.5px solid transparent}
+.stab.on{color:#17233b;border-bottom-color:#17233b}
+/* v6.2: filas y chips del tab Carrier */
+.achips{display:flex;flex-wrap:wrap;gap:6px}
+.achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
+.achip.ok{background:#e6f4ee;color:#12805c}
+/* v6.2: barras OOS vs promedio nacional */
+.oosb{padding:10px 0;border-bottom:1px solid #f2f4f7}
+.oosb:last-child{border-bottom:0}
+.oosb .ot{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:#101828}
+.obadge{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px}
+.obadge.ok{background:#e6f4ee;color:#12805c}
+.obadge.bad{background:#fef3f2;color:#b42318}
+.obadge.na{background:#eef0f4;color:#98a2b3}
+.otrack{position:relative;height:6px;background:#eef0f4;border-radius:999px;margin:8px 0 6px;overflow:visible}
+.ofill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;min-width:3px}
+.ofill.ok{background:#12805c}.ofill.bad{background:#dc2626}
+.omark{position:absolute;top:-3px;width:2px;height:12px;background:#667085;border-radius:1px}
+.ocap{font-size:11.5px;color:var(--sub);font-weight:600;line-height:1.45}
+.ocap .below{color:#12805c;font-weight:700}
+.ocap .above{color:#b42318;font-weight:700}
+/* v6.2: crash boxes */
+.cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cs{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}
+.cs b{display:block;font-size:17px;color:#101828}
+.cs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-top:3px}
 @media (min-width:900px){
   .sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-46%) scale(.98);opacity:0;max-width:600px;max-height:82vh;border-radius:20px}
   .sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
@@ -631,7 +692,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.1</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.2</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -785,19 +846,68 @@ function cerrarSeguro(){
   setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
     if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
 }
+// v6.2: el sheet se arma completo (hero + tabs + cuerpo) segun la
+// data disponible. Con carrier verificado: hero oscuro con nombre
+// legal, badges DOT/MC, stat boxes y tabs Insurance | Carrier. Sin
+// carrier (JSON viejo, red caida o DOT inexistente): encabezado
+// simple v6.1 y solo el cuerpo de Insurance — cero dead-ends.
+function armarSeguroSheet(sh, dot, ins){
+  var carrier = ins && ins.carrier;
+  var conHero = !!(carrier && carrier.exists && carrier.name);
+  var conTabCarrier = !!(carrier && carrier.exists !== false);
+  var H = '';
+  if (conHero) {
+    var prof = carrier.prof || null;
+    var m150 = carrier.m150 || null;
+    var lugar = [carrier.city, carrier.state].filter(Boolean).join(', ');
+    var dotOk = prof && prof.allowed === 'Y';
+    H += '<div class="shero">' +
+      '<button type="button" class="sclose" aria-label="Close">&#10005;</button>' +
+      '<div class="shname">' + esc(carrier.name) + '</div>' +
+      (lugar ? '<div class="shloc">' + esc(lugar) + '</div>' : '') +
+      '<div class="shpills">' +
+        '<span class="pchip ' + (prof ? (dotOk ? 'ok' : 'red') : 'slate') + '">DOT ' + esc(dot) + '</span>' +
+        (m150 && m150.mc ? '<span class="pchip slate">' + esc(m150.mc) + '</span>' : '') +
+        (prof && prof.op ? '<span class="pchip slate">' + esc(prof.op) + '</span>' : '') +
+      '</div>' +
+      (prof ? '<div class="shstats">' +
+        '<div class="shs"><b>' + (prof.pu === null ? '-' : prof.pu) + '</b><span>Power Units</span></div>' +
+        '<div class="shs"><b>' + (prof.drv === null ? '-' : prof.drv) + '</b><span>Drivers</span></div>' +
+      '</div>' : '') +
+    '</div>';
+  } else {
+    H += '<div class="shead"><div><div class="sttl">Insurance</div>' +
+      '<div class="ssub">DOT ' + esc(dot) + '</div></div>' +
+      '<button type="button" class="sclose" aria-label="Close">&#10005;</button></div>';
+  }
+  if (ins && conTabCarrier) {
+    H += '<div class="stabs">' +
+      '<button type="button" class="stab on" data-tab="ins">Insurance</button>' +
+      '<button type="button" class="stab" data-tab="car">Carrier</button></div>';
+  }
+  H += '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
+  sh.innerHTML = H;
+  sh.querySelector('.sclose').addEventListener('click', cerrarSeguro);
+  var tabs = sh.querySelectorAll('.stab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener('click', function(){
+      var yo = this;
+      for (var k = 0; k < tabs.length; k++) tabs[k].classList.remove('on');
+      yo.classList.add('on');
+      var body = sh.querySelector('.sbody');
+      body.innerHTML = (yo.getAttribute('data-tab') === 'car') ? cuerpoCarrier(ins) : cuerpoSeguro(ins);
+      body.scrollTop = 0;
+    });
+  }
+}
 function abrirSeguro(dot, ins){
   cerrarSeguro();
   var ov = document.createElement('div'); ov.className = 'ov';
   var sh = document.createElement('div'); sh.className = 'sheet';
-  sh.innerHTML =
-    '<div class="shead"><div><div class="sttl">Insurance</div>' +
-      '<div class="ssub">DOT ' + esc(dot) + '</div></div>' +
-      '<button type="button" class="sclose" aria-label="Close">&#10005;</button></div>' +
-    '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
+  armarSeguroSheet(sh, dot, ins);
   document.body.appendChild(ov); document.body.appendChild(sh);
   ov.addEventListener('click', cerrarSeguro);
-  sh.querySelector('.sclose').addEventListener('click', cerrarSeguro);
-  seguroAbierto = {ov: ov, sh: sh};
+  seguroAbierto = {ov: ov, sh: sh, dot: dot};
   requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
   if (!ins) cargarSeguro(sh);
 }
@@ -811,7 +921,7 @@ function cargarSeguro(sh){
       var body = sh.querySelector('.sbody');
       if (d.ok && d.insurance) {
         if (LEAD && LEAD.id === ID) LEAD.insurance = d.insurance;
-        body.innerHTML = cuerpoSeguro(d.insurance);
+        armarSeguroSheet(sh, seguroAbierto.dot, d.insurance); // v6.2: hero + tabs
       } else {
         body.innerHTML = '<p class="empty">Insurance data is not available yet.<br>' +
           'It refreshes automatically \u2014 try again in a few minutes.</p>';
@@ -929,6 +1039,124 @@ function cuerpoSeguro(ins){
     encodeURIComponent(ins.dot || '') + '" target="_blank" rel="noopener">View SAFER snapshot</a></p>';
   return H;
 }
+// ── v6.2: TAB CARRIER (perfil QCMobile + Census) ──
+function fmtPct(n){
+  if (n === null || n === undefined) return '-';
+  return (Math.round(n * 10) / 10) + '%';
+}
+function fmtMillas(s){
+  var n = Number(s);
+  return isNaN(n) ? String(s || '-') : n.toLocaleString('en-US');
+}
+function fechaIso(iso){ // 'YYYY-MM-DD' -> 'May 20, 2026'
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(iso || '-');
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MES[parseInt(m[2],10)-1] + ' ' + parseInt(m[3],10) + ', ' + m[1];
+}
+function authHumano(v){
+  if (v === 'A') return ['Active', 'ok'];
+  if (v === 'I') return ['Inactive', ''];
+  if (v === 'N') return ['None', ''];
+  return ['-', ''];
+}
+// Barra OOS contra el promedio nacional. Verde bajo el promedio,
+// rojo encima; marcador gris = promedio nacional. Sin inspecciones:
+// badge N/A y texto honesto (no se inventa un 0% "bueno").
+function barraOos(titulo, o){
+  if (!o) return '';
+  if (!o.i) {
+    return '<div class="oosb"><div class="ot"><span>' + esc(titulo) +
+      '</span><span class="obadge na">N/A</span></div>' +
+      '<p class="ocap" style="margin:6px 0 0">No inspections in the last 24 months.</p></div>';
+  }
+  var r = o.r === null ? 0 : o.r;
+  var encima = (o.na !== null && o.r !== null && o.r > o.na);
+  var cl = encima ? 'bad' : 'ok';
+  var marca = (o.na !== null) ? '<span class="omark" style="left:' + Math.min(o.na, 100) + '%"></span>' : '';
+  return '<div class="oosb">' +
+    '<div class="ot"><span>' + esc(titulo) + '</span>' +
+      '<span class="obadge ' + cl + '">' + esc(fmtPct(o.r)) + '</span></div>' +
+    '<div class="otrack"><span class="ofill ' + cl + '" style="width:' + Math.min(r, 100) + '%"></span>' + marca + '</div>' +
+    '<p class="ocap" style="margin:0">' + o.o + ' of ' + o.i + ' inspections OOS' +
+      (o.na !== null ? ' \u00b7 National Avg: ' + esc(fmtPct(o.na)) : '') +
+      (o.na !== null && o.r !== null
+        ? ' \u00b7 <span class="' + (encima ? 'above' : 'below') + '">' + (encima ? 'above average' : 'below average') + '</span>'
+        : '') + '</p></div>';
+}
+function cuerpoCarrier(ins){
+  var carrier = ins && ins.carrier;
+  // Sin bloque carrier (JSON pre-v24.3 o QCMobile caido al enriquecer)
+  if (!carrier) {
+    return '<p class="empty">Carrier profile could not be verified with FMCSA.<br>' +
+      'It refreshes automatically \u2014 try again later.</p>';
+  }
+  // Con carrier pero sin perfil (JSON pre-v24.4 o cache en transicion)
+  if (!carrier.prof) {
+    return '<p class="empty">Carrier profile not loaded yet.<br>' +
+      'It refreshes automatically \u2014 reopen in a few minutes.</p>';
+  }
+  var p = carrier.prof, m = carrier.m150 || null, H = '';
+
+  // 1) Fuera de servicio federal: banda roja arriba de todo
+  if (p.allowed === 'N' || p.oos_date) {
+    H += '<div class="iband red">FMCSA lists this carrier as not authorized to operate' +
+      (p.oos_date ? ' \u2014 out-of-service order effective ' + esc(p.oos_date) : '') + '.</div>';
+  }
+
+  // 2) Operation & Authority
+  var aCom = authHumano(p.auth && p.auth.com), aCon = authHumano(p.auth && p.auth.con), aBrk = authHumano(p.auth && p.auth.brk);
+  H += '<div class="icard"><p class="label">Operation</p>' +
+    '<div class="drow"><span>Operation type</span><b>' + esc(p.op || '-') + '</b></div>' +
+    '<div class="drow"><span>Allowed to operate</span><b>' + (p.allowed === 'Y' ? 'Yes' : p.allowed === 'N' ? 'No' : '-') + '</b></div>' +
+    '<div class="drow" style="border-bottom:0"><span>Authority</span></div>' +
+    '<div class="achips">' +
+      '<span class="achip ' + aCom[1] + '">Common: ' + aCom[0] + '</span>' +
+      '<span class="achip ' + aCon[1] + '">Contract: ' + aCon[0] + '</span>' +
+      '<span class="achip ' + aBrk[1] + '">Broker: ' + aBrk[0] + '</span>' +
+    '</div></div>';
+
+  // 3) Safety: barras OOS + rating
+  H += '<div class="icard"><p class="label">Out of service rates \u00b7 last 24 months</p>' +
+    barraOos('Driver OOS', p.oos && p.oos.d) +
+    barraOos('Vehicle OOS', p.oos && p.oos.v) +
+    ((p.oos && p.oos.h && p.oos.h.i) ? barraOos('Hazmat OOS', p.oos.h) : '') +
+    '</div>';
+  H += '<div class="icard"><p class="label">Safety rating</p>' +
+    '<div class="drow" style="border-bottom:0"><span>FMCSA safety rating</span><b>' +
+    (p.rate ? esc(p.rate) + (p.rate_date ? ' \u00b7 ' + esc(p.rate_date) : '') : 'Not Available') + '</b></div>' +
+    (p.rate ? '' : '<p class="ocap" style="margin:4px 0 0">Most carriers are unrated \u2014 FMCSA only rates after a compliance review.</p>') +
+    '</div>';
+
+  // 4) Crashes (ventana SMS de 24 meses)
+  var c = p.crash || {};
+  var cv = function(x){ return (x === null || x === undefined) ? '-' : x; };
+  H += '<div class="icard"><p class="label">Crashes \u00b7 last 24 months</p>' +
+    '<div class="cstats">' +
+      '<div class="cs"><b>' + cv(c.t) + '</b><span>Total</span></div>' +
+      '<div class="cs"><b>' + cv(c.f) + '</b><span>Fatal</span></div>' +
+      '<div class="cs"><b>' + cv(c.i) + '</b><span>Injury</span></div>' +
+      '<div class="cs"><b>' + cv(c.tw) + '</b><span>Tow-away</span></div>' +
+    '</div></div>';
+
+  // 5) Mileage / MCS-150 (Census; honesto si falta)
+  H += '<div class="icard"><p class="label">Mileage info</p>' +
+    (m
+      ? '<div class="drow"><span>Annual mileage</span><b>' +
+          (m.mi ? esc(fmtMillas(m.mi)) + ' mi' : '-') + '</b></div>' +
+        '<div class="drow"><span>Reported year</span><b>' + esc(m.yr || '-') + '</b></div>' +
+        '<div class="drow" style="border-bottom:0"><span>MCS-150 update</span><b>' +
+          (m.date ? esc(fechaIso(m.date)) : '-') + '</b></div>'
+      : '<p class="ocap" style="margin:0">MCS-150 data not available from the FMCSA Census file.</p>') +
+    '</div>';
+
+  // 6) Pie
+  H += '<p class="ifoot">FMCSA QCMobile + Census data \u00b7 Updated ' + esc(ins.updated_at || '') + '<br>' +
+    '<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=' +
+    encodeURIComponent(ins.dot || '') + '" target="_blank" rel="noopener">View SAFER snapshot</a></p>';
+  return H;
+}
+
 // Fila del DETALLE (bajo las notas). Sin DOT: cadena vacía.
 function filaSeguroDetalle(d){
   if (!d.dot) return '';
