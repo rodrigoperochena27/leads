@@ -8,6 +8,15 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.7 — PANTALLA DE INICIO (motor v24.5).
+   v6.7: la bienvenida/OTP deja de ser una franja con una tarjeta
+   descolgada: ahora es una pantalla completa con el gradiente navy
+   del sistema, marca centrada (LEAD PANEL / Welcome, Jenny / Your
+   leads, in one place) y una tarjeta de verificacion centrada con
+   sombra profunda. MISMOS ids y MISMA logica OTP (btn-send,
+   otp-step2, otp-code, btn-verify, btn-resend, otp-err): solo
+   cambia el envoltorio visual. Variante admin identica en flujo.
+   ------------------------------------------------------------
    LEAD PANEL v6.6 — VELOCIDAD + PULIDO FINAL DEL DETALLE (motor
    v24.4; solo panel, sin Nueva version del webhook).
    v6.6 (feedback de Rodrigo sobre v6.5):
@@ -474,6 +483,16 @@ textarea{height:62px;resize:vertical}
 
 /* ── OTP ── */
 .otpwrap{padding:0 20px 30px;background:var(--paper)}
+/* v6.7: pantalla de inicio a pantalla completa */
+.authwrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#141e33 0%,#17233b 45%,#24395c 100%);padding:40px 20px;box-sizing:border-box}
+.authbrand{text-align:center;margin-bottom:28px}
+.authbrand .eyebrow{color:#8fa3c4}
+.authbrand h1{margin:8px 0 8px;font-size:31px;font-weight:800;letter-spacing:-.4px;color:#fff}
+.authbrand p{margin:0;font-size:14.5px;color:#c3cede}
+.authcard{background:#fff;border-radius:20px;padding:26px 24px;width:100%;max-width:420px;box-sizing:border-box;box-shadow:0 24px 60px rgba(8,15,30,.45)}
+.authcard h2{margin:0 0 8px;font-size:18px;color:#101828}
+.authcard p{margin:0 0 16px;font-size:14px;color:var(--sub);line-height:1.5}
+.authfoot{margin-top:20px;font-size:12px;color:#8fa3c4;text-align:center}
 .otpcard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 20px;margin-top:-26px;box-shadow:0 4px 18px rgba(23,35,59,.12)}
 .otpcard h2{margin:0 0 6px;font-size:19px}
 .otpcard p{margin:0 0 16px;font-size:14px;color:var(--sub);line-height:1.5}
@@ -610,22 +629,28 @@ function irALeads(){
 function verOtp(esAdmin){
   vistaActual = 'otp';
   var who = esAdmin ? '&who=admin' : '';
+  // v6.7: pantalla completa centrada. MISMOS ids, MISMA logica.
   app.innerHTML =
-    '<div class="hero flat"><span class="eyebrow">Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
-    '<h1>' + (esAdmin ? 'Admin access' : 'Welcome, Jenny') + '</h1>' +
-    '<p class="biz">' + (esAdmin ? 'Read-only mode. Opening leads will not affect anything.' : 'Your leads, in one place.') + '</p></div>' +
-    '<div class="otpwrap"><div class="otpcard">' +
-      '<h2>Verify it\'s you</h2>' +
-      '<p>Tap the button and we\'ll email a 6-digit code to ' + (esAdmin ? 'Rodrigo\'s inbox' : 'your inbox') + '. You\'ll only need to do this once on this device.</p>' +
-      '<button class="btn-full" id="btn-send">Email me a code</button>' +
-      '<div id="otp-step2" style="display:none">' +
-        '<label style="margin-top:18px">Access code</label>' +
-        '<input id="otp-code" class="otpcode" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">' +
-        '<button class="btn-full" id="btn-verify">Enter</button>' +
-        '<button class="btn-ghost" id="btn-resend">Send a new code</button>' +
+    '<div class="authwrap">' +
+      '<div class="authbrand">' +
+        '<span class="eyebrow">Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
+        '<h1>' + (esAdmin ? 'Admin access' : 'Welcome, Jenny') + '</h1>' +
+        '<p>' + (esAdmin ? 'Read-only mode. Opening leads will not affect anything.' : 'Your leads, in one place.') + '</p>' +
       '</div>' +
-      '<p id="otp-err" class="errline"></p>' +
-    '</div></div>';
+      '<div class="authcard">' +
+        '<h2>Verify it\'s you</h2>' +
+        '<p>Tap the button and we\'ll email a 6-digit code to ' + (esAdmin ? 'Rodrigo\'s inbox' : 'your inbox') + '. You\'ll only need to do this once on this device.</p>' +
+        '<button class="btn-full" id="btn-send">Email me a code</button>' +
+        '<div id="otp-step2" style="display:none">' +
+          '<label style="margin-top:18px">Access code</label>' +
+          '<input id="otp-code" class="otpcode" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">' +
+          '<button class="btn-full" id="btn-verify">Enter</button>' +
+          '<button class="btn-ghost" id="btn-resend">Send a new code</button>' +
+        '</div>' +
+        '<p id="otp-err" class="errline"></p>' +
+      '</div>' +
+      '<p class="authfoot">Secured with one-time email codes.</p>' +
+    '</div>';
 
   var err = document.getElementById('otp-err');
   function pedirCodigo(btn){
@@ -823,7 +848,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.6</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.7</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
