@@ -8,6 +8,29 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
+   LEAD PANEL v6.6 — VELOCIDAD + PULIDO FINAL DEL DETALLE (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.6 (feedback de Rodrigo sobre v6.5):
+   1. VELOCIDAD: cache stale-while-revalidate por lead (localStorage
+      'jl_lead_v1_<ID>'). Al abrir un lead ya visitado, el detalle
+      COMPLETO pinta al instante desde cache y api=lead refresca en
+      segundo plano; solo se re-renderiza si la data cambio y la
+      agente NO esta a mitad de una seleccion de status (para no
+      pisarle el click). Tras un guardado exitoso el cache de ese
+      lead se invalida. La latencia restante es del webhook de Apps
+      Script (arranque frio 1-4s): eso no se arregla en el panel.
+   2. El conteo de llamadas ("1 call") SALE del panel: es metrica
+      interna de Rodrigo (Telegram/dashboard). El registro en el
+      motor no cambia; solo deja de mostrarse.
+   3. Your activity con altura maxima (210px) + degradado y boton
+      "Show all" cuando hay mas contenido: el historial largo ya no
+      estira la pagina, y el degradado avisa que hay mas.
+   4. CURRENT ahora vive DENTRO del boton (pill gris a la derecha).
+   5. Lead details: Contact arriba y Coverage answers al final
+      (pedido de Rodrigo); filas en grilla etiqueta(130px)/valor
+      alineado a la IZQUIERDA — se acabo el valor pegado al borde
+      derecho con el hueco en medio. Movil intacto.
+   ------------------------------------------------------------
    LEAD PANEL v6.5 — GUARDADO EN DOS PASOS + DETALLE REBALANCEADO
    (motor v24.4; solo panel, sin Nueva version del webhook).
    v6.5 (feedback de Rodrigo sobre v6.4):
@@ -253,7 +276,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .card.warn{background:#fffaeb;border-color:#fedf89}
 .card.warn .label{color:#b54708}
 .card.warn li{color:#7a3b06;font-weight:600}
-.card.act-prev{background:#f8fafc}
+.card.act-prev{background:#f8fafc;position:relative}
+/* v6.6: actividad con tope + degradado + Show all */
+.act-prev.clamp .actbody{max-height:210px;overflow:hidden}
+.actfade{display:none}
+.act-prev.clamp .actfade{display:block;position:absolute;left:0;right:0;bottom:44px;height:60px;background:linear-gradient(rgba(248,250,252,0),#f8fafc)}
+.actmore{display:none;width:100%;margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#344054;font-size:13px;font-weight:700;cursor:pointer}
+.act-prev.clamp .actmore{display:block}
 .drow{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:7px 0;border-bottom:1px solid #f2f4f7}
 .drow:last-child{border-bottom:0}
 .drow span{color:var(--sub)}
@@ -266,9 +295,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .pv.yes{background:#e6f4ee;color:#12805c}
 .pv.no{background:#eef0f4;color:#667085}
 .dlink{color:#17233b;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
-/* v6.5: tarjeta unica Lead details, filas compactas */
-.card.dets .drow{padding:6px 0;font-size:13.5px}
-.card.dets .drow b{word-break:break-word}
+/* v6.5/v6.6: tarjeta unica Lead details — grilla etiqueta/valor,
+   valor alineado a la IZQUIERDA (nada pegado al borde derecho) */
+.card.dets .drow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:4px 12px;padding:6px 0;font-size:13.5px;align-items:start}
+.card.dets .drow b{text-align:left;word-break:break-word}
+.card.dets .drow .pv{justify-self:start}
 .card.dets .gsub{margin:14px 0 3px}
 .card.dets .gsub:first-of-type{margin-top:2px}
 /* v6.5: hoja de confirmacion de guardado */
@@ -290,7 +321,7 @@ details.card .inner{padding:4px 18px 14px}
 .st .dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex:none}
 .st.sel{border-color:var(--c);background:color-mix(in srgb, var(--c) 9%, #fff);box-shadow:0 0 0 1px var(--c)}
 @supports not (background:color-mix(in srgb,#fff 9%,#fff)){.st.sel{background:#f8fafc}}
-.curtag{position:absolute;top:-8px;right:10px;background:#17233b;color:#fff;font-size:9px;font-weight:800;letter-spacing:.8px;padding:3px 9px;border-radius:999px}
+.curtag{position:absolute;top:50%;right:10px;transform:translateY(-50%);background:#eef0f4;color:#475467;font-size:9px;font-weight:800;letter-spacing:.8px;padding:3px 9px;border-radius:999px}
 .ctx{display:none;background:#f8fafc;border:1px solid var(--line);border-radius:13px;padding:13px;margin-top:11px}
 label{display:block;font-size:13px;font-weight:600;color:#344054;margin:9px 0 5px}
 label:first-child{margin-top:0}
@@ -792,7 +823,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.5</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.6</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1268,11 +1299,13 @@ function cuerpoCarrier(ins){
 // (llamar/escribir ya vive en los botones del hero). Dentro de cada
 // grupo las filas se ordenan segun esta lista (NAICS/SIC arriba de
 // Description, pedido de Rodrigo).
+// v6.6: orden final decidido por Rodrigo — Contact arriba, Coverage
+// answers al cierre. NAICS/SIC sigue primero en Business profile.
 var GRUPOS_DET = [
-  ['Coverage answers', ['annual policy','currently insured','quoted elsewhere']],
+  ['Contact', ['email','address','phone']],
   ['Business profile', ['naics / sic','description','category','business type','years in business','owner experience']],
   ['Financials', ['revenue','payroll','subcontractors','ft employees']],
-  ['Contact', ['email','address','phone']]
+  ['Coverage answers', ['annual policy','currently insured','quoted elsewhere']]
 ];
 // Montos que se normalizan a $X,XXX (FT employees es conteo, no dinero)
 var MONEY_DET = ['revenue','payroll','subcontractors'];
@@ -1346,9 +1379,17 @@ function verDetalle(id, t, desdeLista){
   // completo. Los links de correo (sin lista cargada) conservan el
   // spinner. El registro de apertura sigue siendo api=lead: nada
   // cambia en las métricas.
-  var prev = null;
-  for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
-  if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
+  // v6.6: cache por lead — si ya lo visitamos, el detalle COMPLETO
+  // pinta al instante y api=lead refresca en segundo plano.
+  var cacheado = null;
+  try { cacheado = JSON.parse(localStorage.getItem('jl_lead_v1_' + id) || 'null'); } catch (e) {}
+  if (cacheado && cacheado.ok) {
+    LEAD = cacheado; render();
+  } else {
+    var prev = null;
+    for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
+    if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
+  }
   // v4.4: sin ping previo en modo admin — el motor v21.5 responde
   // admin_expired sin registrar apertura si la sesión venció.
   cargarDetalle();
@@ -1398,6 +1439,13 @@ function cargarDetalle(){
         return;
       }
       if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
+      // v6.6: guardar cache y re-renderizar SOLO si la data cambio y
+      // la agente no esta a mitad de una seleccion (sel === null).
+      var igual = false;
+      try { igual = JSON.stringify(LEAD) === JSON.stringify(d); } catch (e) {}
+      try { localStorage.setItem('jl_lead_v1_' + ID, JSON.stringify(d)); } catch (e) {}
+      if (igual) return;
+      if (sel !== null && LEAD && LEAD.id === d.id) { LEAD = d; return; } // data fresca sin pisar el click
       LEAD = d; render();
     })
     .catch(function(){
@@ -1431,7 +1479,10 @@ function render(){
     ? '<ul style="margin:6px 0 0;padding-left:18px">' + j.notes.map(function(n){
         return '<li style="font-size:14px;color:#344054;margin-bottom:4px">' + esc(n) + '</li>'; }).join('') + '</ul>' : '';
   var actividad = (actRows.length || actNotas)
-    ? '<div class="card act-prev"><p class="label">Your activity</p>' + actRows.join('') + actNotas + '</div>' : '';
+    ? '<div class="card act-prev"><p class="label">Your activity</p>' +
+      '<div class="actbody" id="actbody">' + actRows.join('') + actNotas + '</div>' +
+      '<div class="actfade"></div>' +
+      '<button type="button" class="actmore" id="actmore">Show all</button></div>' : '';
 
   // v6.4: Full details agrupado. Movil = una tarjeta colapsable con
   // subtitulos (flujo original). Desktop = una tarjeta por grupo en
@@ -1474,7 +1525,6 @@ function render(){
   var heroInfo =
       '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
       '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
-        (d.calls ? ' · ' + d.calls + (d.calls === 1 ? ' call' : ' calls') : '') +
         (esAdmin ? ' · ADMIN' : '') + '</span>' +
       pillEstado(d.status) + '</div>' +
       '<h1>' + esc(d.name) + '</h1>' +
@@ -1508,6 +1558,20 @@ function render(){
 
   sel = null; selLabel = '';
   document.getElementById('btn-lista').onclick = irALeads;
+
+  // v6.6: clamp de Your activity — si el contenido excede el tope,
+  // se recorta con degradado y aparece "Show all".
+  (function(){
+    var ab = document.getElementById('actbody');
+    if (!ab) return;
+    var tarjeta = ab.parentNode;
+    if (ab.scrollHeight > 230) {
+      tarjeta.classList.add('clamp');
+      document.getElementById('actmore').onclick = function(){
+        tarjeta.classList.remove('clamp');
+      };
+    }
+  })();
 
   // v6: Insurance Intel — abre el sheet (con data cargada) o dispara
   // el fetch on-demand cuando la celda sigue pendiente.
@@ -1545,6 +1609,7 @@ function render(){
   });
 
   function pantallaExito(dd){
+    try { localStorage.removeItem('jl_lead_v1_' + ID); } catch (e) {} // v6.6: proximo open, fresco
     app.innerHTML =
       '<div class="center">' +
       '<div class="okmark">✓</div>' +
