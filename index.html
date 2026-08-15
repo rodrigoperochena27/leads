@@ -8,7 +8,23 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.13 — VIN EN LA FUENTE DEL PANEL (motor v24.8).
+   LEAD PANEL v6.14 — TIMELINE + DESGLOSE BASIC (motor v24.9).
+   v6.14 (Fase 4, sesion 1): (1) cuarta tab "Timeline": cronologia
+   del carrier con data que YA vive en el INSURANCE_JSON (alta del
+   DOT, polizas L&I con gaps de cobertura computados por FUSION DE
+   INTERVALOS — un reemplazo con solape no es gap; el gap abierto
+   hasta hoy siempre se muestra; los cerrados desde 7 dias, y la
+   leyenda lo declara —, ultima MCS-150, autoridad hoy). Cero red.
+   (2) Tab Inspections: tabla "Violation breakdown" por categoria
+   BASIC bajo el Summary (bloque basics del motor v24.9, snapshot
+   SMS MENSUAL): leyenda honesta con asof + rango real del carrier
+   (~24m, DISTINTO de los 36m del listado). Sin chips de filtro:
+   el join unique_id (8mt8) != inspection_id (fx4q) esta muerto
+   (sonda 14-ago). Sin percentiles ni scores (rechazado con causa).
+   (3) .stab con padding horizontal 4px para que 4 tabs quepan en
+   movil (+fallback 12px de fuente <=340px); .stab solo la usa este
+   modal — .sheet global y Confirm & save intactos. Contrato
+   api=save intacto: guardarRapido y render byte-identicos a v6.13.
    v6.13: los VINs dejan la monoespaciada y usan la tipografia del
    panel (bold, letter-spacing .4px) — los VINs excluyen I/O/Q por
    estandar, asi que la mono no aporta y rompia la consistencia
@@ -507,8 +523,27 @@ textarea{height:62px;resize:vertical}
 .shs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
 /* v6.2: tabs */
 .stabs{flex:none;display:flex;background:#fff;border-bottom:1px solid var(--line)}
-.stab{flex:1;border:0;background:none;font-family:inherit;font-size:13.5px;font-weight:700;color:#667085;padding:12px 8px 10px;cursor:pointer;border-bottom:2.5px solid transparent}
+.stab{flex:1;border:0;background:none;font-family:inherit;font-size:13.5px;font-weight:700;color:#667085;padding:12px 4px 10px;cursor:pointer;border-bottom:2.5px solid transparent} /* v6.14: 4 tabs */
 .stab.on{color:#17233b;border-bottom-color:#17233b}
+/* v6.14 (Fase 4): 4 tabs en pantallas muy angostas + tabla BASIC +
+   timeline. OJO: nada de esto toca .sheet global (Confirm & save). */
+@media (max-width:340px){.stab{font-size:12px;padding:12px 2px 10px}}
+.btbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.btbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#98a2b3;font-weight:700;text-align:right;padding:0 0 6px 8px}
+.btbl th:first-child{text-align:left;padding-left:0}
+.btbl td{padding:7px 0 7px 8px;border-top:1px solid var(--line);text-align:right;font-weight:700;color:#17233b}
+.btbl td:first-child{text-align:left;padding-left:0;font-weight:600;color:#344054}
+.btbl td.boos{color:#b42318}
+.tl{position:relative;padding:2px 0 2px 16px}
+.tl:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.tle{position:relative;padding:0 0 14px}
+.tle:last-child{padding-bottom:0}
+.tle:before{content:'';position:absolute;left:-16px;top:3px;width:8px;height:8px;border-radius:50%;background:#98a2b3;border:2px solid #fff;box-shadow:0 0 0 1px #e4e7ec}
+.tle.ok:before{background:#12805c}
+.tle.gap:before{background:#b42318}
+.tlt{font-size:12.5px;font-weight:700;color:#17233b;margin:0}
+.tle.gap .tlt{color:#b42318}
+.tlm{font-size:11.5px;color:#667085;margin:1px 0 0}
 /* v6.2: filas y chips del tab Carrier */
 .achips{display:flex;flex-wrap:wrap;gap:6px}
 .achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
@@ -957,7 +992,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.13</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.14</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1149,7 +1184,8 @@ function armarSeguroSheet(sh, dot, ins){
     H += '<div class="stabs">' +
       '<button type="button" class="stab on" data-tab="ins">Insurance</button>' +
       '<button type="button" class="stab" data-tab="car">Carrier</button>' +
-      '<button type="button" class="stab" data-tab="insp">Inspections</button></div>';
+      '<button type="button" class="stab" data-tab="insp">Inspections</button>' +
+      '<button type="button" class="stab" data-tab="tl">Timeline</button></div>';
   }
   H += '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
   sh.innerHTML = H;
@@ -1163,7 +1199,8 @@ function armarSeguroSheet(sh, dot, ins){
       var body = sh.querySelector('.sbody');
       var cual = yo.getAttribute('data-tab');
       body.innerHTML = (cual === 'car') ? cuerpoCarrier(ins)
-                     : (cual === 'insp') ? cuerpoInspecciones(ins) : cuerpoSeguro(ins);
+                     : (cual === 'insp') ? cuerpoInspecciones(ins)
+                     : (cual === 'tl') ? cuerpoTimeline(ins) : cuerpoSeguro(ins); // v6.14
       body.scrollTop = 0;
     });
   }
@@ -1498,6 +1535,33 @@ function cuerpoInspecciones(ins){
       if (sts.length) s += '<div class="drow" style="border-bottom:0"><span>Inspected in</span><b>' + esc(sts.join(', ')) + '</b></div>';
       return s;
     })() + '</div>';
+  // v6.14 (Fase 4A): desglose por BASIC del snapshot SMS mensual
+  // (bloque basics del motor v24.9). Ventana ~24m: NO es la de los
+  // 36m de arriba, y la leyenda lo declara con el rango real del
+  // carrier + el asof del snapshot. Sin chips de filtro (join
+  // unique_id != inspection_id muerto, sonda 14-ago). Sin basics en
+  // el JSON (pre-v24.9 o red caida) => "not loaded yet", regla 6.
+  var bb = ins.basics;
+  if (bb) {
+    H += '<div class="icard">' + labelIco('shield', 'Violation breakdown \u00b7 BASIC categories');
+    if (bb.cats && bb.cats.length) {
+      H += '<table class="btbl"><tr><th>Category</th><th>Viol.</th><th>Severity</th><th>OOS</th></tr>';
+      bb.cats.forEach(function(c){
+        H += '<tr><td>' + esc(c.n) + '</td><td>' + (c.tot || 0) + '</td><td>' + (c.sev || 0) +
+          '</td><td' + (c.oos > 0 ? ' class="boos"' : '') + '>' + (c.oos || 0) + '</td></tr>';
+      });
+      H += '</table>';
+    } else {
+      H += '<p class="ocap" style="margin:2px 0 0">No violations in the current SMS snapshot.</p>';
+    }
+    H += '<p class="ocap" style="margin:8px 0 0">FMCSA SMS snapshot' +
+      (bb.asof ? ' as of ' + esc(fechaIso(bb.asof)) : '') +
+      (bb.from && bb.to ? ' \u00b7 covers ' + esc(fechaIso(bb.from)) + ' \u2013 ' + esc(fechaIso(bb.to)) : '') +
+      ' \u2014 a \u224824-month window, not the ' + (ip.win_m || 36) + '-month list below. ' +
+      'Severity per FMCSA SMS weights; percentile scores are not public.</p></div>';
+  } else {
+    H += '<p class="ocap" style="margin:0 0 10px;text-align:center">BASIC violation breakdown not loaded yet \u2014 it refreshes automatically.</p>';
+  }
   var flota = mapaFlota(ins);
   if (ip.deg) {
     H += '<div class="iband amber">Some inspection details could not be loaded \u2014 they refresh automatically.</div>';
@@ -1553,6 +1617,114 @@ function cuerpoInspecciones(ins){
   });
   H += '<p class="ifoot">FMCSA roadside inspection data (updated daily) \u00b7 Updated ' +
     esc(ins.updated_at || '') + '</p>';
+  return H;
+}
+// v6.14 (Fase 4C): Company Timeline — cronologia del carrier con
+// data que YA vive en el INSURANCE_JSON. Cero red, cero motor.
+// Gaps de cobertura por FUSION DE INTERVALOS (historial L&I +
+// polizas activas): un reemplazo con solape o continuidad al dia
+// siguiente NO es gap. Gaps cerrados se muestran desde 7 dias (los
+// tramites de 1-2 dias son ruido y la leyenda lo declara); el gap
+// ABIERTO hasta hoy se muestra siempre — es el argumento de venta
+// numero uno. El nodo "Today" no pinta rojo a un intrastate sin
+// filing (no_filing != sin seguro real).
+function cuerpoTimeline(ins){
+  if (!ins) return '<p class="empty">Timeline not loaded yet.</p>';
+  var DIA = 864e5, hoy = Date.now();
+  var MESN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fTs(ts){ var d = new Date(ts); return MESN[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+  function tsIso(iso){
+    var x = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return x ? new Date(+x[1], +x[2]-1, +x[3]).getTime() : 0;
+  }
+  function durTxt(dd){
+    return dd >= 365 ? ((dd/365).toFixed(1).replace('.0','') + 'y')
+         : dd >= 30 ? (Math.round(dd/30) + 'mo') : (dd + 'd');
+  }
+  var m = (ins.carrier && ins.carrier.m150) || null;
+  var ev = [];
+  // 1) Registro federal (Census)
+  if (m && m.add && tsIso(m.add)) ev.push({ts: tsIso(m.add), cls: '',
+    t: 'DOT registered with FMCSA', m: fechaIso(m.add)});
+  if (m && m.date && tsIso(m.date)) ev.push({ts: tsIso(m.date), cls: '',
+    t: 'Latest MCS-150 filing', m: fechaIso(m.date) +
+      (m.mi ? ' \u00b7 ' + esc(fmtMillas(m.mi)) + ' mi reported' + (m.yr ? ' (' + esc(String(m.yr)) + ')' : '') : '')});
+  // 2) Polizas: historial (cerradas) + activas (abiertas hasta hoy)
+  var hist = historialLimpio(ins.history);
+  var iv = [];
+  hist.forEach(function(h){
+    var a = tsDe(h.effective); if (!a) return;
+    var b = tsDe(h.cancelled) || a;
+    if (b < a) b = a;
+    iv.push([a, b]);
+    var mm = metodoHumano(h.method);
+    ev.push({ts: a, cls: '',
+      t: esc(h.insurer || '-') + (mm[0] ? ' <span class="iht ' + mm[1] + '">' + esc(mm[0]) + '</span>' : ''),
+      m: [esc(tipoHumano(h.type)), esc(fFecha(h.effective)) + ' \u2013 ' + esc(fFecha(h.cancelled)) +
+          (b > a ? ' \u00b7 ' + durTxt(Math.round((b - a) / DIA)) : '')].filter(Boolean).join(' \u00b7 ')});
+  });
+  var activas = ins.active_all || [];
+  activas.forEach(function(a){
+    var t1 = tsDe(a.effective); if (!t1) return;
+    iv.push([t1, hoy]);
+    ev.push({ts: t1, cls: 'ok',
+      t: esc(a.insurer || '-') + ' <span class="iht rep" style="background:#e6f4ee;color:#12805c">Active</span>',
+      m: [esc(tipoHumano(a.form)), 'since ' + esc(fFecha(a.effective)) +
+          ' \u00b7 ' + durTxt(Math.max(0, Math.round((hoy - t1) / DIA)))].filter(Boolean).join(' \u00b7 ') +
+         (a.pending_cancel && a.cancel_effective ? ' \u00b7 pending cancellation ' + esc(fFecha(a.cancel_effective)) : '')});
+  });
+  if (!ev.length) {
+    return '<p class="empty">Not enough dated FMCSA records to build a timeline.</p>';
+  }
+  // 3) Fusion de intervalos y gaps
+  iv.sort(function(x, y){ return x[0] - y[0]; });
+  var fus = [];
+  iv.forEach(function(x){
+    if (fus.length && x[0] <= fus[fus.length-1][1] + DIA) {
+      if (x[1] > fus[fus.length-1][1]) fus[fus.length-1][1] = x[1];
+    } else fus.push([x[0], x[1]]);
+  });
+  for (var g = 1; g < fus.length; g++) {
+    var dd = Math.round((fus[g][0] - fus[g-1][1]) / DIA);
+    if (dd >= 7) ev.push({ts: fus[g-1][1] + 1, cls: 'gap',
+      t: 'No coverage on file \u00b7 ' + dd + ' days',
+      m: fTs(fus[g-1][1]) + ' \u2013 ' + fTs(fus[g][0])});
+  }
+  if (fus.length && !activas.length) { // gap abierto hasta hoy: SIEMPRE
+    var fin = fus[fus.length-1][1];
+    var dd2 = Math.round((hoy - fin) / DIA);
+    if (dd2 >= 1) ev.push({ts: fin + 1, cls: 'gap',
+      t: 'No coverage on file \u00b7 ' + dd2 + ' days and counting',
+      m: 'Since ' + fTs(fin)});
+  }
+  // 4) Hoy: estado + autoridad (sin rojo para no_filing: intrastate)
+  var p = ins.carrier && ins.carrier.prof;
+  var aut = '';
+  if (p && p.auth) {
+    var aC = authHumano(p.auth.com), aN = authHumano(p.auth.con), aB = authHumano(p.auth.brk);
+    var partes = [];
+    if (aC[0] !== '-') partes.push('Common ' + aC[0]);
+    if (aN[0] !== '-') partes.push('Contract ' + aN[0]);
+    if (aB[0] !== '-') partes.push('Broker ' + aB[0]);
+    aut = partes.length ? 'Authority: ' + partes.join(' \u00b7 ')
+                        : 'No for-hire operating authority on record';
+  }
+  ev.push({ts: hoy + 1, cls: (ins.active ? 'ok' : ''), t: 'Today',
+    m: (ins.active ? 'Covered by ' + esc(ins.active.insurer || '-')
+        : (ins.no_filing ? 'No FMCSA insurance filing on record'
+                         : 'No active insurance on file')) +
+       (aut ? ' \u00b7 ' + esc(aut) : '')});
+  ev.sort(function(a, b){ return a.ts - b.ts; });
+  var H = '<div class="icard">' + labelIco('cal', 'Company timeline') + '<div class="tl">';
+  ev.forEach(function(e){
+    H += '<div class="tle' + (e.cls ? ' ' + e.cls : '') + '"><p class="tlt">' + e.t + '</p>' +
+         (e.m ? '<p class="tlm">' + e.m + '</p>' : '') + '</div>';
+  });
+  H += '</div>' +
+    '<p class="ocap" style="margin:10px 0 0">Built from federal FMCSA filings (L&amp;I insurance, MCS-150 registration). ' +
+    'Coverage gaps reflect filing records \u2014 gaps shorter than 7 days are not shown. ' +
+    'Confirm with the client before quoting.</p></div>';
+  H += '<p class="ifoot">FMCSA L&amp;I + registration data \u00b7 Updated ' + esc(ins.updated_at || '') + '</p>';
   return H;
 }
 function cuerpoCarrier(ins){
