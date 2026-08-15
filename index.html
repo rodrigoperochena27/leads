@@ -8,7 +8,16 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.16 — RELATED COMPANIES (motor v24.10).
+   LEAD PANEL v6.17 — CHIP DE OFFICER CON NOMBRE (motor v24.10).
+   v6.17 (feedback Rodrigo 15-ago): el chip "Same officer" ahora
+   muestra el NOMBRE del officer compartido ("Officer: DANIEL
+   GUZMAN...") — dato accionable para cotizar. Sale de m150.off1
+   del MISMO registro Census (el match es por definicion ese valor):
+   cero motor, cero re-enriquecimiento. Fallback a "Same officer" si
+   un JSON viejo no trae off1. Espacios multiples colapsados solo
+   para display (el dato verbatim no se toca). Demas chips intactos:
+   el legal name ya se ve en la fila; phone/email/direccion son
+   valores largos que ya viven en Company contacts.
    v6.16 (Fase 4B): tarjeta "Related companies" en tab Carrier,
    entre Company contacts y Fleet & drivers. Pinta el bloque rel
    del motor v24.10 (otros DOTs que comparten officer/nombre/
@@ -1007,7 +1016,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.16</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.17</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1809,6 +1818,10 @@ function cuerpoCarrier(ins){
   } else {
     var VIA_LBL = {officer: 'Same officer', name: 'Same legal name',
       phone: 'Same phone', email: 'Same email', address: 'Same address'};
+    // v6.17: el officer compartido es el del propio carrier (mismo
+    // registro Census) — mostrar el nombre es accionable para el
+    // agente. Colapso de espacios SOLO en display.
+    if (m && m.off1) VIA_LBL.officer = 'Officer: ' + String(m.off1).replace(/\s+/g, ' ').trim();
     H += '<div class="icard">' + labelIco('doc', 'Related companies \u00b7 FMCSA Census');
     if (!rel.length) {
       H += '<p class="ocap" style="margin:2px 0 0">No other DOT shares this carrier\u2019s officer, legal name, phone, email or address in the current Census.</p></div>';
