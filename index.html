@@ -8,7 +8,11 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.14 — TIMELINE + DESGLOSE BASIC (motor v24.9).
+   LEAD PANEL v6.15 — TIMELINE INVERTIDA (motor v24.9).
+   v6.15: la Timeline se lee de HOY hacia atras (pedido de Rodrigo,
+   15-ago): Today arriba, "DOT registered" abajo. Solo cambia el
+   sort (desc); eventos, gaps por fusion de intervalos, CSS de
+   linea/puntos y contrato api=save quedan intactos.
    v6.14 (Fase 4, sesion 1): (1) cuarta tab "Timeline": cronologia
    del carrier con data que YA vive en el INSURANCE_JSON (alta del
    DOT, polizas L&I con gaps de cobertura computados por FUSION DE
@@ -992,7 +996,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.14</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.15</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1714,7 +1718,7 @@ function cuerpoTimeline(ins){
         : (ins.no_filing ? 'No FMCSA insurance filing on record'
                          : 'No active insurance on file')) +
        (aut ? ' \u00b7 ' + esc(aut) : '')});
-  ev.sort(function(a, b){ return a.ts - b.ts; });
+  ev.sort(function(a, b){ return b.ts - a.ts; }); // v6.15: Today arriba
   var H = '<div class="icard">' + labelIco('cal', 'Company timeline') + '<div class="tl">';
   ev.forEach(function(e){
     H += '<div class="tle' + (e.cls ? ' ' + e.cls : '') + '"><p class="tlt">' + e.t + '</p>' +
