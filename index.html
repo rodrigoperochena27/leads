@@ -8,7 +8,19 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.17 — CHIP DE OFFICER CON NOMBRE (motor v24.10).
+   LEAD PANEL v6.18 — TALKING POINTS (motor v24.11, Fase 4D).
+   v6.18: tarjeta "Before you call" AL INICIO del tab Insurance
+   (decision Rodrigo 15-ago): bullets factuales generados por
+   Gemini en el motor (bloque tp del JSON, cache por hash — sin
+   boton de regenerar, se renueva solo cuando el contenido real
+   cambia). El panel SOLO pinta texto ya validado en servidor
+   (max 5 bullets / 600 chars, markdown despojado alla); igual se
+   escapa aqui (XSS). Leyenda declara que es sintesis de IA y que
+   el detalle vive en las tabs. tp ausente (pre-v24.11, DOT
+   inexistente o Gemini caido sin previo) => NO se pinta nada: una
+   sintesis debe ganarse el espacio y su ausencia no oculta data
+   (todo el detalle sigue abajo) — distinto de basics/rel, que son
+   DATA y avisan "not loaded yet". Contrato api=save intacto.
    v6.17 (feedback Rodrigo 15-ago): el chip "Same officer" ahora
    muestra el NOMBRE del officer compartido ("Officer: DANIEL
    GUZMAN...") — dato accionable para cotizar. Sale de m150.off1
@@ -568,6 +580,9 @@ textarea{height:62px;resize:vertical}
 .tlm{font-size:11.5px;color:#667085;margin:1px 0 0}
 /* v6.16 (Fase 4B): filas de Related companies */
 .relr+.relr{border-top:1px solid var(--line);margin-top:9px;padding-top:9px}
+/* v6.18 (Fase 4D): bullets de talking points */
+.tpul{margin:4px 0 0;padding-left:17px}
+.tpul li{font-size:12.5px;font-weight:600;color:#17233b;margin:4px 0;line-height:1.35}
 /* v6.2: filas y chips del tab Carrier */
 .achips{display:flex;flex-wrap:wrap;gap:6px}
 .achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
@@ -1016,7 +1031,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.17</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.18</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1276,6 +1291,25 @@ function cuerpoSeguro(ins){
   var H = '';
   var act = ins.active;
   var e = estadoChip(ins.c ? ins.c : null);
+
+  // 0) v6.18 (Fase 4D): talking points pre-llamada (bloque tp del
+  // motor v24.11, ya validado y recortado en servidor). tp ausente
+  // => nada: la sintesis no es data (el detalle completo sigue en
+  // las tabs), asi que su ausencia no se anuncia — a diferencia de
+  // basics/rel. Escapado igual por higiene (XSS).
+  if (ins.tp && ins.tp.txt) {
+    var tpb = String(ins.tp.txt).split('\n')
+      .map(function (x) { return x.trim(); })
+      .filter(Boolean).slice(0, 5);
+    if (tpb.length) {
+      H += '<div class="icard">' + labelIco('gauge', 'Before you call') +
+        '<ul class="tpul">' + tpb.map(function (b) {
+          return '<li>' + esc(b) + '</li>';
+        }).join('') + '</ul>' +
+        '<p class="ocap" style="margin:8px 0 0">AI summary of this carrier\u2019s ' +
+        'federal records \u2014 verify each point in the tabs below before quoting.</p></div>';
+    }
+  }
 
   // 1) Estado actual
   if (act) {
