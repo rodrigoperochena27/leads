@@ -8,7 +8,16 @@
 <title>Lead Panel</title>
 <style>
 /* ============================================================
-   LEAD PANEL v6.15 — TIMELINE INVERTIDA (motor v24.9).
+   LEAD PANEL v6.16 — RELATED COMPANIES (motor v24.10).
+   v6.16 (Fase 4B): tarjeta "Related companies" en tab Carrier,
+   entre Company contacts y Fleet & drivers. Pinta el bloque rel
+   del motor v24.10 (otros DOTs que comparten officer/nombre/
+   telefono/email/direccion en el Census — patron chameleon).
+   Estados honestos: rel undefined = "not loaded yet" (pre-v24.10
+   o red caida); rel=[] = buscado y sin relacionados (dato de venta
+   tambien); rel=[...] = filas con chips del campo que matchea y
+   status Active/Inactive (un hermano inactivo ES la senal
+   chameleon). Contrato api=save intacto.
    v6.15: la Timeline se lee de HOY hacia atras (pedido de Rodrigo,
    15-ago): Today arriba, "DOT registered" abajo. Solo cambia el
    sort (desc); eventos, gaps por fusion de intervalos, CSS de
@@ -548,6 +557,8 @@ textarea{height:62px;resize:vertical}
 .tlt{font-size:12.5px;font-weight:700;color:#17233b;margin:0}
 .tle.gap .tlt{color:#b42318}
 .tlm{font-size:11.5px;color:#667085;margin:1px 0 0}
+/* v6.16 (Fase 4B): filas de Related companies */
+.relr+.relr{border-top:1px solid var(--line);margin-top:9px;padding-top:9px}
 /* v6.2: filas y chips del tab Carrier */
 .achips{display:flex;flex-wrap:wrap;gap:6px}
 .achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
@@ -996,7 +1007,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.15</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.16</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1786,6 +1797,44 @@ function cuerpoCarrier(ins){
       '<p class="ocap" style="margin:6px 0 0">From the carrier\u2019s federal MCS-150 filing \u2014 compare with what the lead provided.</p></div>';
   }
 
+  // 2b2) v6.16 (Fase 4B): related companies (bloque rel, motor
+  // v24.10). Semantica: undefined = no cargado (pre-v24.10 o red
+  // caida) => nota "not loaded yet" (regla 6: red caida != "no
+  // hay"); [] = buscado y sin relacionados => tarjeta honesta
+  // (tambien es dato de venta); [...] = relacionados con chips del
+  // campo que matchea. Un hermano Inactive ES la senal chameleon.
+  var rel = ins.rel;
+  if (rel === undefined) {
+    H += '<p class="ocap" style="margin:0 0 10px;text-align:center">Related companies not loaded yet \u2014 it refreshes automatically.</p>';
+  } else {
+    var VIA_LBL = {officer: 'Same officer', name: 'Same legal name',
+      phone: 'Same phone', email: 'Same email', address: 'Same address'};
+    H += '<div class="icard">' + labelIco('doc', 'Related companies \u00b7 FMCSA Census');
+    if (!rel.length) {
+      H += '<p class="ocap" style="margin:2px 0 0">No other DOT shares this carrier\u2019s officer, legal name, phone, email or address in the current Census.</p></div>';
+    } else {
+      rel.forEach(function (r) {
+        var inact = r.st && r.st !== 'A';
+        H += '<div class="relr">' +
+          '<p class="tlt">DOT ' + esc(r.dot) + ' \u00b7 ' + esc(r.nm || '-') +
+            (inact ? ' <span class="iht rep" style="background:#fdecea;color:#b42318">Inactive</span>'
+                   : ' <span class="iht rep" style="background:#e6f4ee;color:#12805c">Active</span>') + '</p>' +
+          (function () {
+            var m2 = [
+              (r.pu != null ? r.pu + ' power units' : ''),
+              (r.drv != null ? r.drv + ' drivers' : ''),
+              (r.ad ? 'registered ' + esc(fechaIso(r.ad)) : '')
+            ].filter(Boolean).join(' \u00b7 ');
+            return m2 ? '<p class="tlm">' + m2 + '</p>' : '';
+          })() +
+          '<div class="achips" style="margin-top:5px">' +
+            (r.via || []).map(function (v) {
+              return '<span class="achip">' + esc(VIA_LBL[v] || v) + '</span>';
+            }).join('') + '</div></div>';
+      });
+      H += '<p class="ocap" style="margin:9px 0 0">Companies sharing this carrier\u2019s federal registration details \u2014 possible prior or successor operations (chameleon pattern). An inactive sibling with a bad record changes the risk picture: verify before quoting.</p></div>';
+    }
+  }
   // 2c) v6.10: resumen de flota y conductores del MCS-150 (Census)
   if (m && (m.trk != null || m.cdl != null || m.di != null || m.din != null)) {
     H += '<div class="icard">' + labelIco('truck', 'Fleet & drivers \u00b7 MCS-150') +
