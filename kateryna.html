@@ -8,8 +8,9 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.4 (kateryna.html) — fork 1:1 de index.html
-   v6.22 (motor v24.14.7). v1.4: tarjeta precargada + Fingerprint
+   KATERYNA LEAD PANEL v1.5 (kateryna.html) — fork 1:1 de index.html
+   v6.23 (motor v24.14.8). v1.5: tarjeta OSHA por estado — M1 de la
+   auditoria (espejo de index v6.23). v1.4: tarjeta precargada + Fingerprint
    escaneable (espejo de index v6.22). v1.3: tarjeta FMCSA cross-check + botones
    de busqueda multi-llave (espejo de index v6.21). v1.2: X de cierre + lenguaje Fingerprint
    inequivoco (espejo de index v6.20). v1.1: tarjeta Business Verify / Digital
@@ -1059,7 +1060,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.22</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.23</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2209,10 +2210,16 @@ function vTabVerifyHTML(v){
     (w.mono ? '<p class="vkv"><b>Monopolistic state.</b></p>' : '') +
     (w.det ? '<p class="vkv">' + esc(w.det) + '</p>' : '') + '</div>';
   var o = v.osha || {};
+  // v6.23 (M1): el texto sigue al ESTADO. Antes DEEPLINK/SKIPPED/
+  // NOT_APPLICABLE (la busqueda NO corrio) afirmaban "no records
+  // matched" — un negativo que nunca se busco. La ausencia solo
+  // significa algo cuando se consulto de verdad.
   H += '<div class="icard">' + labelIco('gauge', 'OSHA history') + vChip(o.st) +
     (o.st === 'FOUND' ? '<p class="vkv"><b>' + o.n + '</b> inspection record(s) on file' +
       (o.last ? ' \u00b7 most recent opened ' + esc(o.last) : '') + '.</p>'
-      : '<p class="vkv">No federal OSHA inspection records matched this business.</p>') +
+      : o.st === 'NOT_FOUND_EXPECTED' ? '<p class="vkv">No federal OSHA inspection records matched this business.</p>'
+      : o.st === 'NOT_APPLICABLE' ? '<p class="vkv">Automated OSHA matching was not applicable for this business name \u2014 use the manual search.</p>'
+      : '<p class="vkv">The automated OSHA search was not run for this lead \u2014 use the manual search.</p>') +
     vLink(o.url, 'Open OSHA search') + '</div>';
   return H;
 }
