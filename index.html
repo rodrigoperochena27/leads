@@ -9,6 +9,13 @@
 <style>
 /* ============================================================
    LEAD PANEL v6.18 — TALKING POINTS (motor v24.11, Fase 4D).
+   v6.21 (leccion Castillo): (1) tarjeta "FMCSA cross-check" en el
+   tab Verify — para trucking SIN DOT el motor v24.14.6 cruza el
+   census federal por nombre/dueno/telefono y la tarjeta presenta el
+   posible match (REPORT-ONLY: confirmar, no asumir); (2) Fingerprint
+   con TRES botones de busqueda por combinacion de llaves (nombre+
+   ciudad, telefono, dueno+giro) — sin comillas: las comillas hacian
+   frase exacta y devolvian cero resultados.
    v6.20 (feedback Rodrigo 17-ago): (1) boton X de cierre en el
    sheet Verify (delegacion en el sheet: sobrevive los innerHTML);
    (2) tab Fingerprint con lenguaje INEQUIVOCO: el not-found dice
@@ -1060,7 +1067,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.20</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.21</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2182,6 +2189,25 @@ function vTabVerifyHTML(v){
     H += '<p class="vkv">This state\u2019s registry is a manual lookup.</p>' + vLink(r.url, 'Open state registry');
   }
   H += '</div>';
+  // v6.21: cruce FMCSA (solo trucking sin DOT; REPORT-ONLY — la
+  // agente decide, el sistema jamas escribe el DOT por su cuenta).
+  var fm = v.fmcsa || null;
+  if (fm && fm.st !== 'NOT_APPLICABLE') {
+    H += '<div class="icard">' + labelIco('gauge', 'FMCSA cross-check') + vChip(fm.st === 'FOUND' ? 'FOUND' : fm.st);
+    if (fm.st === 'FOUND') {
+      H += '<p class="vkv">Lead reports no US DOT, but the federal carrier census shows a possible match:</p>' +
+        (fm.hits || []).map(function(h){
+          return '<p class="vkv"><b>DOT ' + esc(h.dot) + '</b> \u00b7 ' + esc(h.nm) +
+            ' <span class="achip">matched by: ' + esc((h.by || []).join(', ')) + '</span></p>';
+        }).join('') +
+        '<p class="ocap" style="margin:8px 0 0">Automated cross-check of the FMCSA census by business name, owner name, and phone. A match here is a lead to confirm, not a confirmed identity.</p>';
+    } else if (fm.st === 'NOT_FOUND') {
+      H += '<p class="vkv">No federal carrier census match by business name, owner name, or phone.</p>';
+    } else {
+      H += '<p class="vkv">Cross-check was not run for this lead.</p>';
+    }
+    H += '</div>';
+  }
   var l = v.lic || {};
   H += '<div class="icard">' + labelIco('gauge', 'Licensing') + vChip(l.st) +
     (l.det ? '<p class="vkv">' + esc(l.det) + '</p>' : '') + vLink(l.url, 'Open license lookup') + '</div>';
@@ -2219,8 +2245,9 @@ function vTabFingHTML(v){
   } else {
     H += '<p class="vkv">' + esc(p.det || 'Automated search was not run for this lead.') + '</p>';
   }
-  H += vLink(p.gq, 'Search on Google') +
-    '<p class="ocap" style="margin:8px 0 0">Scope: the automated search covers web listings and directories; social-media-only presence is often not visible to it. The button above opens the full manual Google view.</p></div>';
+  H += vLink(p.gq, 'Search: name + city') + vLink(p.gq2, 'Search: phone') +
+    vLink(p.gq3, 'Search: owner + trade') +
+    '<p class="ocap" style="margin:8px 0 0">Scope: the automated search covers web listings and directories; social-media-only presence is often not visible to it. The buttons above open manual Google views, one per key combination \u2014 unquoted, the way cross-validation works.</p></div>';
   var w = v.web || {};
   H += '<div class="icard">' + labelIco('gauge', 'Email & domain') + vChip(w.st);
   if (w.dom) H += '<p class="vkv">Business domain: <b>' + esc(w.dom) + '</b>' +
