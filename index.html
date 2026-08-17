@@ -9,6 +9,11 @@
 <style>
 /* ============================================================
    LEAD PANEL v6.18 — TALKING POINTS (motor v24.11, Fase 4D).
+   v6.22 (feedback TK04): (1) tarjeta Verify PRECARGADA — api=lead
+   (motor v24.14.7) ya trae d.verify y el sheet abre al instante;
+   api=verify queda como fallback si aun no corrio; (2) Fingerprint
+   rediseñado: lineas cortas escaneables en vez de parrafos, copy
+   del panel para not-found (el det largo del motor ya no se pinta).
    v6.21 (leccion Castillo): (1) tarjeta "FMCSA cross-check" en el
    tab Verify — para trucking SIN DOT el motor v24.14.6 cruza el
    census federal por nombre/dueno/telefono y la tarjeta presenta el
@@ -1067,7 +1072,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.21</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.22</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2102,12 +2107,10 @@ function cerrarVerify(){
     if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
 }
 
-function abrirVerify(){
+function abrirVerify(vPre){ // v6.22: acepta verify precargado de api=lead
   cerrarVerify();
   var ov = document.createElement('div'); ov.className = 'ov';
   var sh = document.createElement('div'); sh.className = 'sheet sheet--vfy';
-  sh.innerHTML = vHeadHTML('') +
-    '<div style="padding:0 18px 18px"><p class="ocap">Loading verification\u2026</p></div>';
   document.body.appendChild(ov); document.body.appendChild(sh);
   ov.addEventListener('click', cerrarVerify);
   sh.addEventListener('click', function(e){ // v6.20: X delegado
@@ -2115,6 +2118,9 @@ function abrirVerify(){
   });
   vfyAbierto = {ov: ov, sh: sh};
   requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+  if (vPre) { armarVerifySheet(sh, vPre); return; } // instantaneo
+  sh.innerHTML = vHeadHTML('') +
+    '<div style="padding:0 18px 18px"><p class="ocap">Loading verification\u2026</p></div>';
   cargarVerify(sh);
 }
 
@@ -2242,12 +2248,16 @@ function vTabFingHTML(v){
     else H += '<p class="vkv">No differences from the declared line were noted by the automated search.</p>';
     if ((p.links || []).length) H += '<p class="vkv" style="margin-top:6px">Sources:</p>' +
       p.links.map(function(L){ return vLink(L.u, L.t || 'source'); }).join('');
+  } else if (p.st === 'NOT_FOUND') { // v6.22: copy corto del panel
+    H += '<p class="vkv"><b>No automated findings.</b></p>' +
+      '<p class="vkv">Nothing was compared against the declared operations.</p>' +
+      '<p class="vkv">Social-media-only presence is often invisible to this search.</p>';
   } else {
-    H += '<p class="vkv">' + esc(p.det || 'Automated search was not run for this lead.') + '</p>';
+    H += '<p class="vkv">Automated search was not run for this lead.</p>';
   }
   H += vLink(p.gq, 'Search: name + city') + vLink(p.gq2, 'Search: phone') +
     vLink(p.gq3, 'Search: owner + trade') +
-    '<p class="ocap" style="margin:8px 0 0">Scope: the automated search covers web listings and directories; social-media-only presence is often not visible to it. The buttons above open manual Google views, one per key combination \u2014 unquoted, the way cross-validation works.</p></div>';
+    '<p class="ocap" style="margin:8px 0 0">Buttons open manual Google searches \u2014 one per key, unquoted.</p></div>';
   var w = v.web || {};
   H += '<div class="icard">' + labelIco('gauge', 'Email & domain') + vChip(w.st);
   if (w.dom) H += '<p class="vkv">Business domain: <b>' + esc(w.dom) + '</b>' +
@@ -2535,7 +2545,9 @@ function render(){
 
   // v6.19: Digital Fingerprint — siempre disponible (con o sin DOT).
   var bVfy = document.getElementById('btn-vfy');
-  if (bVfy) bVfy.addEventListener('click', abrirVerify);
+  if (bVfy) bVfy.addEventListener('click', function(){
+    abrirVerify(d.verify || null); // v6.22: abre al instante si ya corrio
+  });
 
   // v4.1: en modo admin no hay controles de estado ni prompt post-llamada
   if (esAdmin) return;
