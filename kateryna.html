@@ -8,8 +8,9 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.1 (kateryna.html) — fork 1:1 de index.html
-   v6.19 (motor v24.14.3). v1.1: tarjeta Business Verify / Digital
+   KATERYNA LEAD PANEL v1.2 (kateryna.html) — fork 1:1 de index.html
+   v6.20 (motor v24.14.4). v1.2: X de cierre + lenguaje Fingerprint
+   inequivoco (espejo de index v6.20). v1.1: tarjeta Business Verify / Digital
    Fingerprint (mismo feature que index v6.19, byte-identico). CAMBIOS vs index v6.18: (1) api=list y
    api=otp_* llevan t=k (sesiones KATERYNA_SESSIONS, cache
    panel_list_k, OTP a kjjenterprisesolutions@gmail.com); las APIs
@@ -647,6 +648,7 @@ textarea{height:62px;resize:vertical}
 .achip.bad{background:#fdecec;color:#b42318}
 .vkv{margin:3px 0;font-size:13.5px;color:#344054}
 .vkv b{color:#17233b}
+.vx{border:0;background:#eef0f4;color:#475467;font-size:15px;font-weight:800;width:30px;height:30px;border-radius:10px;cursor:pointer;line-height:1;flex-shrink:0}
 /* v6.9: resumen del tab Inspections + tabla de equipo + contactos */
 .vchip{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px;flex:none}
 .vchip.warn{background:#fff8e6;color:#a15c00}
@@ -1055,7 +1057,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.19</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.20</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2066,6 +2068,14 @@ function filaDet(x){
 // acusa, y un "not found" automatico NUNCA se pinta como "no existe".
 var vfyAbierto = null;
 
+// v6.20: header con boton X. El cierre se delega en el sheet
+// (sobrevive cada innerHTML; overlay-tap sigue cerrando igual).
+function vHeadHTML(chip){
+  return '<div class="vhead"><h2>Business Verify</h2>' +
+    '<span style="display:flex;align-items:center;gap:8px">' + (chip || '') +
+    '<button type="button" class="vx" id="vfy-x" aria-label="Close">\u2715</button></span></div>';
+}
+
 function filaVerifyDetalle(d){
   return '<button type="button" class="insrow" id="btn-vfy">' +
     '<span class="idot gray"></span>' +
@@ -2086,10 +2096,13 @@ function abrirVerify(){
   cerrarVerify();
   var ov = document.createElement('div'); ov.className = 'ov';
   var sh = document.createElement('div'); sh.className = 'sheet sheet--vfy';
-  sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+  sh.innerHTML = vHeadHTML('') +
     '<div style="padding:0 18px 18px"><p class="ocap">Loading verification\u2026</p></div>';
   document.body.appendChild(ov); document.body.appendChild(sh);
   ov.addEventListener('click', cerrarVerify);
+  sh.addEventListener('click', function(e){ // v6.20: X delegado
+    if (e.target && e.target.id === 'vfy-x') cerrarVerify();
+  });
   vfyAbierto = {ov: ov, sh: sh};
   requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
   cargarVerify(sh);
@@ -2101,13 +2114,13 @@ function cargarVerify(sh){
     .then(function(r){ return r.json(); })
     .then(function(j){
       if (!vfyAbierto || vfyAbierto.sh !== sh) return;
-      if (!j.ok) { sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+      if (!j.ok) { sh.innerHTML = vHeadHTML('') +
         '<div style="padding:0 18px 18px"><p class="ocap">' + esc(j.error || 'Could not load.') + '</p></div>'; return; }
       armarVerifySheet(sh, j.verify);
     })
     .catch(function(){
       if (!vfyAbierto || vfyAbierto.sh !== sh) return;
-      sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+      sh.innerHTML = vHeadHTML('') +
         '<div style="padding:0 18px 18px"><p class="ocap">Network error \u2014 close and try again.</p></div>';
     });
 }
@@ -2197,12 +2210,14 @@ function vTabFingHTML(v){
     if (p.web && p.web.reviews_signal) H += '<p class="vkv">Reviews signal: ' + esc(p.web.reviews_signal) + '</p>';
     if ((p.notes || []).length) H += p.notes.map(function(n){
       return '<p class="vkv">\u2022 ' + esc(n) + '</p>'; }).join('');
+    else H += '<p class="vkv">No differences from the declared line were noted by the automated search.</p>';
     if ((p.links || []).length) H += '<p class="vkv" style="margin-top:6px">Sources:</p>' +
       p.links.map(function(L){ return vLink(L.u, L.t || 'source'); }).join('');
   } else {
     H += '<p class="vkv">' + esc(p.det || 'Automated search was not run for this lead.') + '</p>';
   }
-  H += vLink(p.gq, 'Search on Google') + '</div>';
+  H += vLink(p.gq, 'Search on Google') +
+    '<p class="ocap" style="margin:8px 0 0">Scope: the automated search covers web listings and directories; social-media-only presence is often not visible to it. The button above opens the full manual Google view.</p></div>';
   var w = v.web || {};
   H += '<div class="icard">' + labelIco('gauge', 'Email & domain') + vChip(w.st);
   if (w.dom) H += '<p class="vkv">Business domain: <b>' + esc(w.dom) + '</b>' +
@@ -2229,11 +2244,11 @@ function vTabBenchHTML(v){
 
 function armarVerifySheet(sh, v){
   if (!v) {
-    sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2><span class="achip">Pending</span></div>' +
+    sh.innerHTML = vHeadHTML('<span class="achip">Pending</span>') +
       '<div style="padding:0 18px 18px"><p class="ocap">Verification is still running for this lead \u2014 it fills in automatically shortly after the lead arrives. Close and reopen in a minute.</p></div>';
     return;
   }
-  sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2>' + vChipGlobal(v) + '</div>' +
+  sh.innerHTML = vHeadHTML(vChipGlobal(v)) +
     '<div class="stabs">' +
       '<button type="button" class="stab on" data-tab="vfy">Verify</button>' +
       '<button type="button" class="stab" data-tab="fng">Fingerprint</button>' +
