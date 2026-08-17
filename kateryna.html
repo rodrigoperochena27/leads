@@ -8,8 +8,9 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.0 (kateryna.html) — fork 1:1 de index.html
-   v6.18 (motor v24.13). CAMBIOS vs index v6.18: (1) api=list y
+   KATERYNA LEAD PANEL v1.1 (kateryna.html) — fork 1:1 de index.html
+   v6.19 (motor v24.14.3). v1.1: tarjeta Business Verify / Digital
+   Fingerprint (mismo feature que index v6.19, byte-identico). CAMBIOS vs index v6.18: (1) api=list y
    api=otp_* llevan t=k (sesiones KATERYNA_SESSIONS, cache
    panel_list_k, OTP a kjjenterprisesolutions@gmail.com); las APIs
    por lead (lead/save/call/opened/insurance) NO llevan t — el motor
@@ -633,6 +634,19 @@ textarea{height:62px;resize:vertical}
 @media (min-width:900px){
   .sheet--ins{width:640px;max-width:calc(100vw - 24px);height:82vh}
 }
+/* v6.19: Business Verify / Digital Fingerprint (sheet propio —
+   jamas tocar .sheet global; tamano espejo de sheet--ins) */
+.sheet--vfy{height:88vh}
+@media (min-width:720px){
+  .sheet--vfy{width:640px;max-width:calc(100vw - 24px);height:82vh}
+}
+.vhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 10px}
+.vhead h2{margin:0;font-size:17px;font-weight:800;color:#17233b}
+.vlink{display:inline-block;font-size:12.5px;font-weight:700;color:#17408b;background:#eef3fb;border:1px solid #d6e2f5;border-radius:9px;padding:6px 11px;text-decoration:none;margin:6px 6px 0 0}
+.achip.warn{background:#fdf0e1;color:#b54708}
+.achip.bad{background:#fdecec;color:#b42318}
+.vkv{margin:3px 0;font-size:13.5px;color:#344054}
+.vkv b{color:#17233b}
 /* v6.9: resumen del tab Inspections + tabla de equipo + contactos */
 .vchip{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px;flex:none}
 .vchip.warn{background:#fff8e6;color:#a15c00}
@@ -1041,7 +1055,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.18</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.19</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2043,6 +2057,205 @@ function filaDet(x){
   return '<div class="drow"><span>' + esc(x[0]) + '</span>' + val + '</div>';
 }
 
+
+// ── v6.19: BUSINESS VERIFY / DIGITAL FINGERPRINT ─────────────────
+// Boton bajo la fila de Insurance; sheet propio (sheet--vfy) con
+// tabs Verify | Fingerprint | Benchmarks — el ORDEN es el mensaje.
+// Data on-demand via api=verify (el motor la enriquece post-correo).
+// La tarjeta presenta HALLAZGOS: jamas instruye a la agente, jamas
+// acusa, y un "not found" automatico NUNCA se pinta como "no existe".
+var vfyAbierto = null;
+
+function filaVerifyDetalle(d){
+  return '<button type="button" class="insrow" id="btn-vfy">' +
+    '<span class="idot gray"></span>' +
+    '<span class="imain"><span class="ittl">Digital Fingerprint \u00b7 Business Verify</span>' +
+    '<span class="ival">Pre-call verification \u2014 tap to open</span></span>' +
+    '<span class="ichev">&#8250;</span></button>';
+}
+
+function cerrarVerify(){
+  if (!vfyAbierto) return;
+  var el = vfyAbierto; vfyAbierto = null;
+  el.ov.classList.remove('on'); el.sh.classList.remove('on');
+  setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
+    if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
+}
+
+function abrirVerify(){
+  cerrarVerify();
+  var ov = document.createElement('div'); ov.className = 'ov';
+  var sh = document.createElement('div'); sh.className = 'sheet sheet--vfy';
+  sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+    '<div style="padding:0 18px 18px"><p class="ocap">Loading verification\u2026</p></div>';
+  document.body.appendChild(ov); document.body.appendChild(sh);
+  ov.addEventListener('click', cerrarVerify);
+  vfyAbierto = {ov: ov, sh: sh};
+  requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+  cargarVerify(sh);
+}
+
+function cargarVerify(sh){
+  fetch(API + '?api=verify&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!vfyAbierto || vfyAbierto.sh !== sh) return;
+      if (!j.ok) { sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+        '<div style="padding:0 18px 18px"><p class="ocap">' + esc(j.error || 'Could not load.') + '</p></div>'; return; }
+      armarVerifySheet(sh, j.verify);
+    })
+    .catch(function(){
+      if (!vfyAbierto || vfyAbierto.sh !== sh) return;
+      sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2></div>' +
+        '<div style="padding:0 18px 18px"><p class="ocap">Network error \u2014 close and try again.</p></div>';
+    });
+}
+
+// Chip por estado de celda — la AUSENCIA tambien es informacion.
+function vChip(st){
+  if (st === 'VERIFIED' || st === 'OK' || st === 'OBSERVED') return '<span class="achip ok">Verified</span>';
+  if (st === 'FOUND') return '<span class="achip warn">Records found</span>';
+  if (st === 'NOT_FOUND_FLAG') return '<span class="achip bad">Not found \u2014 review</span>';
+  if (st === 'NOT_FOUND_EXPECTED') return '<span class="achip">Not found (expected)</span>';
+  if (st === 'NOT_FOUND') return '<span class="achip">No automated findings</span>';
+  if (st === 'DEEPLINK') return '<span class="achip">Manual check</span>';
+  if (st === 'INFO') return '<span class="achip">Info</span>';
+  if (st === 'SKIPPED') return '<span class="achip">Not run</span>';
+  return '<span class="achip">N/A</span>';
+}
+function vChipGlobal(v){
+  if (!v) return '<span class="achip">Pending</span>';
+  if ((v.flags || []).length || (v.reg && v.reg.st === 'NOT_FOUND_FLAG'))
+    return '<span class="achip bad">Review</span>';
+  if (v.reg && v.reg.st === 'VERIFIED') return '<span class="achip ok">Verified</span>';
+  return '<span class="achip warn">Partial</span>';
+}
+function vLink(url, txt){
+  if (!url) return '';
+  return '<a class="vlink" target="_blank" rel="noopener" href="' + esc(url) + '">' + esc(txt) + '</a>';
+}
+
+// ── Tab 1: VERIFY (identidad y contexto regulatorio) ──
+function vTabVerifyHTML(v){
+  var H = '';
+  if (v.tp && v.tp.b && v.tp.b.length) {
+    H += '<div class="icard">' + labelIco('gauge', 'Before you call') +
+      '<ul class="tpul">' + v.tp.b.slice(0, 6).map(function(b){
+        return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>' +
+      '<p class="ocap" style="margin:8px 0 0">AI summary of public-source findings \u2014 each point is verifiable in the cards below.</p></div>';
+  }
+  if ((v.flags || []).length) {
+    H += '<div class="icard">' + labelIco('gauge', 'Flags') +
+      v.flags.map(function(f){ return '<p class="vkv">\u2022 ' + esc(f.t) + '</p>'; }).join('') + '</div>';
+  }
+  var r = v.reg || {};
+  H += '<div class="icard">' + labelIco('gauge', 'State registration') + vChip(r.st);
+  if (r.st === 'VERIFIED') {
+    H += '<p class="vkv"><b>' + esc(r.nm || '') + '</b>' + (r.status ? ' \u00b7 ' + esc(r.status) : '') + '</p>' +
+      (r.formed ? '<p class="vkv">Formed: <b>' + esc(r.formed) + '</b></p>' : '') +
+      (r.agent ? '<p class="vkv">Registered agent: <b>' + esc(r.agent) + '</b></p>' : '') +
+      (r.addr ? '<p class="vkv">Registered address: ' + esc(r.addr) +
+        (r.addr_match === 'match' ? ' <span class="achip ok">Matches lead</span>' :
+         r.addr_match === 'differs' ? ' <span class="achip warn">Differs from lead</span>' : '') + '</p>' : '');
+  } else if (r.st === 'NOT_FOUND_FLAG') {
+    H += '<p class="vkv">No registration found under the exact name in the state registry.</p>' + vLink(r.url, 'Open state search');
+  } else if (r.st === 'NOT_FOUND_EXPECTED') {
+    H += '<p class="vkv">No registration found under the exact name \u2014 consistent with a new or unregistered trade name.</p>' + vLink(r.url, 'Open state search');
+  } else {
+    H += '<p class="vkv">This state\u2019s registry is a manual lookup.</p>' + vLink(r.url, 'Open state registry');
+  }
+  H += '</div>';
+  var l = v.lic || {};
+  H += '<div class="icard">' + labelIco('gauge', 'Licensing') + vChip(l.st) +
+    (l.det ? '<p class="vkv">' + esc(l.det) + '</p>' : '') + vLink(l.url, 'Open license lookup') + '</div>';
+  var w = v.wc || {};
+  H += '<div class="icard">' + labelIco('gauge', 'Workers\u2019 comp context') + vChip(w.st) +
+    (w.mono ? '<p class="vkv"><b>Monopolistic state.</b></p>' : '') +
+    (w.det ? '<p class="vkv">' + esc(w.det) + '</p>' : '') + '</div>';
+  var o = v.osha || {};
+  H += '<div class="icard">' + labelIco('gauge', 'OSHA history') + vChip(o.st) +
+    (o.st === 'FOUND' ? '<p class="vkv"><b>' + o.n + '</b> inspection record(s) on file' +
+      (o.last ? ' \u00b7 most recent opened ' + esc(o.last) : '') + '.</p>'
+      : '<p class="vkv">No federal OSHA inspection records matched this business.</p>') +
+    vLink(o.url, 'Open OSHA search') + '</div>';
+  return H;
+}
+
+// ── Tab 2: FINGERPRINT (huella digital y operaciones publicadas) ──
+function vTabFingHTML(v){
+  var H = '';
+  var p = v.ops || {};
+  H += '<div class="icard">' + labelIco('gauge', 'Operations observed publicly') + vChip(p.st);
+  if (p.st === 'OBSERVED') {
+    if ((p.obs || []).length)
+      H += '<div class="achips" style="margin-top:8px">' + p.obs.map(function(x){
+        return '<span class="achip ok">' + esc(x) + '</span>'; }).join('') + '</div>';
+    if (p.addr_seen) H += '<p class="vkv">Address seen publicly: ' + esc(p.addr_seen) +
+      (p.addr_match === 'match' ? ' <span class="achip ok">Matches lead</span>' :
+       p.addr_match === 'differs' ? ' <span class="achip warn">Differs from lead</span>' : '') + '</p>';
+    if (p.web && p.web.reviews_signal) H += '<p class="vkv">Reviews signal: ' + esc(p.web.reviews_signal) + '</p>';
+    if ((p.notes || []).length) H += p.notes.map(function(n){
+      return '<p class="vkv">\u2022 ' + esc(n) + '</p>'; }).join('');
+    if ((p.links || []).length) H += '<p class="vkv" style="margin-top:6px">Sources:</p>' +
+      p.links.map(function(L){ return vLink(L.u, L.t || 'source'); }).join('');
+  } else {
+    H += '<p class="vkv">' + esc(p.det || 'Automated search was not run for this lead.') + '</p>';
+  }
+  H += vLink(p.gq, 'Search on Google') + '</div>';
+  var w = v.web || {};
+  H += '<div class="icard">' + labelIco('gauge', 'Email & domain') + vChip(w.st);
+  if (w.dom) H += '<p class="vkv">Business domain: <b>' + esc(w.dom) + '</b>' +
+    (w.dom_age ? ' \u00b7 registered ' + esc(w.dom_age) : '') + '</p>';
+  if (w.det) H += '<p class="vkv">' + esc(w.det) + '</p>';
+  H += '</div>';
+  return H;
+}
+
+// ── Tab 3: BENCHMARKS (parametros oficiales — contexto, no juicio) ──
+function vTabBenchHTML(v){
+  var b = v.bench || {};
+  var H = '<div class="icard">' + labelIco('gauge', 'Industry parameters (state level)') + vChip(b.st);
+  if (b.st === 'OK') {
+    H += '<p class="vkv"><b>' + b.estab + '</b> establishments of this NAICS class in the state (' + esc(b.yr || '') + ').</p>' +
+      (b.emp_prom != null ? '<p class="vkv">Average employees per establishment: <b>' + b.emp_prom + '</b></p>' : '') +
+      (b.pay_prom_emp != null ? '<p class="vkv">Average annual payroll per employee: <b>$' + Number(b.pay_prom_emp).toLocaleString('en-US') + ',000</b></p>' : '') +
+      '<p class="ocap" style="margin:8px 0 0">Official U.S. Census (County Business Patterns). Comparison context for the declared figures \u2014 not a judgment.</p>';
+  } else {
+    H += '<p class="vkv">Benchmark data was not available for this lead\u2019s state/NAICS.</p>';
+  }
+  return H + '</div>';
+}
+
+function armarVerifySheet(sh, v){
+  if (!v) {
+    sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2><span class="achip">Pending</span></div>' +
+      '<div style="padding:0 18px 18px"><p class="ocap">Verification is still running for this lead \u2014 it fills in automatically shortly after the lead arrives. Close and reopen in a minute.</p></div>';
+    return;
+  }
+  sh.innerHTML = '<div class="vhead"><h2>Business Verify</h2>' + vChipGlobal(v) + '</div>' +
+    '<div class="stabs">' +
+      '<button type="button" class="stab on" data-tab="vfy">Verify</button>' +
+      '<button type="button" class="stab" data-tab="fng">Fingerprint</button>' +
+      '<button type="button" class="stab" data-tab="bch">Benchmarks</button></div>' +
+    '<div class="sbody" id="vbody"></div>';
+  var cuerpo = sh.querySelector('#vbody');
+  function pintar(cual){
+    cuerpo.innerHTML = (cual === 'fng') ? vTabFingHTML(v)
+      : (cual === 'bch') ? vTabBenchHTML(v) : vTabVerifyHTML(v);
+    cuerpo.scrollTop = 0;
+  }
+  var tabs = sh.querySelectorAll('.stab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){ x.classList.remove('on'); });
+      t.classList.add('on');
+      pintar(t.getAttribute('data-tab'));
+    });
+  });
+  pintar('vfy');
+}
+
 // Fila del DETALLE (bajo las notas). Sin DOT: cadena vacía.
 function filaSeguroDetalle(d){
   if (!d.dot) return '';
@@ -2235,7 +2448,7 @@ function render(){
       '<div class="hmain">' + heroInfo + '</div>' +
       '<div class="hacts">' + actsHtml + '</div></div></div>';
     var dMain = [notas, actividad, tarjetaEstado].filter(function(x){ return !!x; });
-    var dLado = [filaSeguroDetalle(d), detCards].filter(function(x){ return !!x; });
+    var dLado = [filaSeguroDetalle(d) + filaVerifyDetalle(d), detCards].filter(function(x){ return !!x; });
     if (!dMain.length) { dMain = dLado; dLado = []; } // jamas una columna fantasma
     cuerpo = '<div class="wrap det' + (dLado.length ? '' : ' solo') + '">' +
       (dLado.length ? '<div class="dside">' + dLado.join('') + '</div>' : '') +
@@ -2245,7 +2458,7 @@ function render(){
     hero = '<div class="hero det-hero">' + heroInfo + '</div>' +
       '<div class="acts">' + actsHtml + '</div>';
     cuerpo = '<div class="wrap det">' +
-      notas + filaSeguroDetalle(d) + actividad + det + tarjetaEstado +
+      notas + filaSeguroDetalle(d) + filaVerifyDetalle(d) + actividad + det + tarjetaEstado +
       '</div>';
   }
   app.innerHTML = hero + cuerpo +
@@ -2274,6 +2487,10 @@ function render(){
   if (bIns) bIns.addEventListener('click', function(){
     abrirSeguro(d.dot, d.insurance || null);
   });
+
+  // v6.19: Digital Fingerprint — siempre disponible (con o sin DOT).
+  var bVfy = document.getElementById('btn-vfy');
+  if (bVfy) bVfy.addEventListener('click', abrirVerify);
 
   // v4.1: en modo admin no hay controles de estado ni prompt post-llamada
   if (esAdmin) return;
