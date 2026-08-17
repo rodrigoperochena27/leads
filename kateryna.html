@@ -1,0 +1,2483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<title>Lead Panel — Kateryna</title>
+<style>
+/* ============================================================
+   KATERYNA LEAD PANEL v1.0 (kateryna.html) — fork 1:1 de index.html
+   v6.18 (motor v24.13). CAMBIOS vs index v6.18: (1) api=list y
+   api=otp_* llevan t=k (sesiones KATERYNA_SESSIONS, cache
+   panel_list_k, OTP a kjjenterprisesolutions@gmail.com); las APIs
+   por lead (lead/save/call/opened/insurance) NO llevan t — el motor
+   resuelve el tracker por el PREFIJO del ID (K##/TK##). Contrato
+   api=save byte-identico (regla 10). (2) Welcome, Kateryna + title.
+   Todo lo demas es byte-identico a index v6.18; los upgrades de
+   panel se aplican a AMBOS archivos (workflow espejo).
+   ============================================================
+   LEAD PANEL v6.18 — TALKING POINTS (motor v24.11, Fase 4D).
+   v6.18: tarjeta "Before you call" AL INICIO del tab Insurance
+   (decision Rodrigo 15-ago): bullets factuales generados por
+   Gemini en el motor (bloque tp del JSON, cache por hash — sin
+   boton de regenerar, se renueva solo cuando el contenido real
+   cambia). El panel SOLO pinta texto ya validado en servidor
+   (max 5 bullets / 600 chars, markdown despojado alla); igual se
+   escapa aqui (XSS). Leyenda declara que es sintesis de IA y que
+   el detalle vive en las tabs. tp ausente (pre-v24.11, DOT
+   inexistente o Gemini caido sin previo) => NO se pinta nada: una
+   sintesis debe ganarse el espacio y su ausencia no oculta data
+   (todo el detalle sigue abajo) — distinto de basics/rel, que son
+   DATA y avisan "not loaded yet". Contrato api=save intacto.
+   v6.17 (feedback Rodrigo 15-ago): el chip "Same officer" ahora
+   muestra el NOMBRE del officer compartido ("Officer: DANIEL
+   GUZMAN...") — dato accionable para cotizar. Sale de m150.off1
+   del MISMO registro Census (el match es por definicion ese valor):
+   cero motor, cero re-enriquecimiento. Fallback a "Same officer" si
+   un JSON viejo no trae off1. Espacios multiples colapsados solo
+   para display (el dato verbatim no se toca). Demas chips intactos:
+   el legal name ya se ve en la fila; phone/email/direccion son
+   valores largos que ya viven en Company contacts.
+   v6.16 (Fase 4B): tarjeta "Related companies" en tab Carrier,
+   entre Company contacts y Fleet & drivers. Pinta el bloque rel
+   del motor v24.10 (otros DOTs que comparten officer/nombre/
+   telefono/email/direccion en el Census — patron chameleon).
+   Estados honestos: rel undefined = "not loaded yet" (pre-v24.10
+   o red caida); rel=[] = buscado y sin relacionados (dato de venta
+   tambien); rel=[...] = filas con chips del campo que matchea y
+   status Active/Inactive (un hermano inactivo ES la senal
+   chameleon). Contrato api=save intacto.
+   v6.15: la Timeline se lee de HOY hacia atras (pedido de Rodrigo,
+   15-ago): Today arriba, "DOT registered" abajo. Solo cambia el
+   sort (desc); eventos, gaps por fusion de intervalos, CSS de
+   linea/puntos y contrato api=save quedan intactos.
+   v6.14 (Fase 4, sesion 1): (1) cuarta tab "Timeline": cronologia
+   del carrier con data que YA vive en el INSURANCE_JSON (alta del
+   DOT, polizas L&I con gaps de cobertura computados por FUSION DE
+   INTERVALOS — un reemplazo con solape no es gap; el gap abierto
+   hasta hoy siempre se muestra; los cerrados desde 7 dias, y la
+   leyenda lo declara —, ultima MCS-150, autoridad hoy). Cero red.
+   (2) Tab Inspections: tabla "Violation breakdown" por categoria
+   BASIC bajo el Summary (bloque basics del motor v24.9, snapshot
+   SMS MENSUAL): leyenda honesta con asof + rango real del carrier
+   (~24m, DISTINTO de los 36m del listado). Sin chips de filtro:
+   el join unique_id (8mt8) != inspection_id (fx4q) esta muerto
+   (sonda 14-ago). Sin percentiles ni scores (rechazado con causa).
+   (3) .stab con padding horizontal 4px para que 4 tabs quepan en
+   movil (+fallback 12px de fuente <=340px); .stab solo la usa este
+   modal — .sheet global y Confirm & save intactos. Contrato
+   api=save intacto: guardarRapido y render byte-identicos a v6.13.
+   v6.13: los VINs dejan la monoespaciada y usan la tipografia del
+   panel (bold, letter-spacing .4px) — los VINs excluyen I/O/Q por
+   estandar, asi que la mono no aporta y rompia la consistencia
+   visual (feedback de Rodrigo 14-ago).
+   LEAD PANEL v6.12 — PULIDO UX (motor v24.8, sin cambios de motor).
+   NOTA DE VERSIONADO: v6.11 QUEMADA — existio un "v6.11" de
+   procedencia no verificada durante el incidente del 14-ago-2026
+   (en cuarentena, jamas entregado ni instalado); se salta el numero
+   para eliminar ambiguedad en el historial.
+   v6.12: (1) "INCOMPLETE VEHICLE" (termino vPIC para chasis-cabina)
+   se muestra como "TRUCK (CHASSIS)" — solo esa cadena exacta.
+   (2) Marca vPIC completa (FREIGHTLINER) sobre la abreviatura del
+   dataset (FRHT/FREIGHTLIN) en el equipo por inspeccion. (3) Si
+   Officer y Officer 2 del Census son identicos se muestra uno.
+   (4) Endurecimiento movil: wrap en filas de flota/equipo y
+   overflow-wrap en VINs para pantallas angostas (~360px).
+   LEAD PANEL v6.10 — ESTRUCTURA DOTSEARCH-LIKE (motor v24.8).
+   v6.10c: split por inspeccion "N Driver / N Vehicle / N Hazmat"
+   (dv/vv/hv que el motor v24.7 ya guardaba y el panel no pintaba);
+   Email con mailto: y Address con link a Google Maps en contactos.
+   v6.10b: Summary de Inspections con breakdown por nivel CVSA y
+   estados donde inspeccionaron (computado 100% local); tarjeta
+   "Fleet & drivers - MCS-150" en Carrier (trk/cdl/di/din del
+   Census, nombres verificados con sonda). Referencia estructural:
+   HTML de dotsearch aportado por Rodrigo — solo arquitectura de
+   informacion; markup y estilos propios.
+   v6.10: (1) VIN clicable = ACORDEON INLINE en Fleet (specs del
+   vehiculo: tipo/ano/GVWR/placa/VIN + violaciones registradas de
+   ESE vehiculo, cruce 100% local) — se elimina el link externo a
+   NHTSA (daba 404 y sacaba a Jenny del panel). (2) Iconos SVG
+   propios inline (camion/trailer/escudo/telefono/pin/etc.), cero
+   emojis. (3) Reorganizacion estilo dotsearch conservando colores
+   y fonts: Classification/Cargo/HazMat viven en Operation (como
+   "Operation Information"), contactos en su tarjeta, headers de
+   tarjeta con icono. El handler del acordeon es global
+   (toggleFlota) porque el tab se reconstruye por innerHTML.
+   LEAD PANEL v6.9 — FASE 3 PULIDA (motor v24.7).
+   v6.9: (1) el modal de seguro ya no cambia de tamano entre tabs
+   (clase sheet--ins con alto/ancho fijos; el sheet de Confirm &
+   save sigue auto — NO tocar). (2) Tab Inspections estilo dotsearch:
+   resumen arriba (inspecciones/violaciones/OOS), report #, equipo
+   inspeccionado con ano/tipo (join con la flota decodificada), VIN
+   clicable al decoder oficial NHTSA, placas, y cada violacion con
+   chip Warning/OOS y etiqueta Driver / Vehicle-Unit n. (3) Flota
+   con placa y VIN clicable; sin modelo redundante ("GREAT DANE
+   TRAILERS Great Dane Trailers"). (4) Ubicacion sin estado duplicado
+   ("CLE ELUM WA, WA"). (5) Tarjeta "Company contacts" en Carrier
+   (officers/tel/email/direccion del Census) si el motor la trae.
+   LEAD PANEL v6.8 — INSURANCE INTEL FASE 3 (motor v24.6).
+   v6.8: tercera tab "Inspections" en el modal (historial 36 meses:
+   fecha, ubicacion, nivel CVSA, badges Clean/violaciones/OOS y cada
+   violacion con su descripcion oficial, codigo y unidad afectada
+   [Unit n - marca / Driver]); seccion "Fleet - seen in roadside
+   inspections" en la tab Carrier (VINs decodificados via vPIC:
+   ano/marca/modelo/tipo) con disclaimer de MUESTRA. Tolerancia:
+   JSON sin .insp => "not loaded yet" (el refresco semanal lo trae);
+   insp.deg => banda ambar honesta; n:0 => "no inspections on
+   record" (distinto de red caida). Contrato api=save INTACTO.
+   LEAD PANEL v6.7 — PANTALLA DE INICIO (motor v24.5).
+   v6.7: la bienvenida/OTP deja de ser una franja con una tarjeta
+   descolgada: ahora es una pantalla completa con el gradiente navy
+   del sistema, marca centrada (LEAD PANEL / Welcome, Jenny / Your
+   leads, in one place) y una tarjeta de verificacion centrada con
+   sombra profunda. MISMOS ids y MISMA logica OTP (btn-send,
+   otp-step2, otp-code, btn-verify, btn-resend, otp-err): solo
+   cambia el envoltorio visual. Variante admin identica en flujo.
+   ------------------------------------------------------------
+   LEAD PANEL v6.6 — VELOCIDAD + PULIDO FINAL DEL DETALLE (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.6 (feedback de Rodrigo sobre v6.5):
+   1. VELOCIDAD: cache stale-while-revalidate por lead (localStorage
+      'jl_lead_v1_<ID>'). Al abrir un lead ya visitado, el detalle
+      COMPLETO pinta al instante desde cache y api=lead refresca en
+      segundo plano; solo se re-renderiza si la data cambio y la
+      agente NO esta a mitad de una seleccion de status (para no
+      pisarle el click). Tras un guardado exitoso el cache de ese
+      lead se invalida. La latencia restante es del webhook de Apps
+      Script (arranque frio 1-4s): eso no se arregla en el panel.
+   2. El conteo de llamadas ("1 call") SALE del panel: es metrica
+      interna de Rodrigo (Telegram/dashboard). El registro en el
+      motor no cambia; solo deja de mostrarse.
+   3. Your activity con altura maxima (210px) + degradado y boton
+      "Show all" cuando hay mas contenido: el historial largo ya no
+      estira la pagina, y el degradado avisa que hay mas.
+   4. CURRENT ahora vive DENTRO del boton (pill gris a la derecha).
+   5. Lead details: Contact arriba y Coverage answers al final
+      (pedido de Rodrigo); filas en grilla etiqueta(130px)/valor
+      alineado a la IZQUIERDA — se acabo el valor pegado al borde
+      derecho con el hueco en medio. Movil intacto.
+   ------------------------------------------------------------
+   LEAD PANEL v6.5 — GUARDADO EN DOS PASOS + DETALLE REBALANCEADO
+   (motor v24.4; solo panel, sin Nueva version del webhook).
+   v6.5 (feedback de Rodrigo sobre v6.4):
+   1. GUARDADO EN DOS PASOS (desktop y movil): la tarjeta Update
+      status queda SOLO con los 6 botones. Al tocar Save se abre una
+      hoja de confirmacion (mismo componente del modal de seguros)
+      con los campos del status elegido — premium/comision/termino
+      para Sold, quoted premium para Quoted, razon para Declined —
+      la nota opcional y el boton Confirm & save. Los campos
+      requeridos ya no pueden pasar desapercibidos: estan en foco.
+      El contrato con api=save es IDENTICO (mismos params, misma
+      validacion); guardarRapido del prompt post-llamada no cambia.
+   2. Comision sin sesgo: se elimina el hint "usually 6-9%" y el
+      placeholder "e.g. 7" — solo "Agent commission (%) optional".
+   3. Layout desktop rebalanceado: IZQUIERDA (400px) = Insurance
+      intel (DOT) + UNA tarjeta "Lead details" seccionada (Coverage
+      answers > Business profile con NAICS/SIC primero > Financials
+      > Contact), sin scroll interno (contenido oculto = trampa).
+      DERECHA = Notes de Rodrigo > Your activity > Update status.
+   4. Financials: montos normalizados a $X,XXX (revenue, payroll,
+      subcontractors); FT employees queda como conteo.
+   5. Hero: pill de status junto al ID (ya no flota a la derecha);
+      Call y WhatsApp con el MISMO ancho fijo.
+   6. CURRENT como badge real anclado al borde del boton.
+   ------------------------------------------------------------
+   LEAD PANEL v6.4 — DETALLE PENSADO COMO FLUJO DE AGENTE (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.4: jerarquia de informacion de venta, no volcado de datos:
+   - DESKTOP: sidebar IZQUIERDA (340px) = datos de referencia que la
+     agente consulta durante la llamada — Full details partido en
+     tarjetas semanticas (Contact / Business profile / Financials /
+     Coverage answers, mapeo por etiqueta con grupo "Other details"
+     para lo no reconocido: ninguna fila se pierde) + Your activity.
+     Columna DERECHA = el flujo de trabajo: Notes de Rodrigo ->
+     Insurance intel -> Update status. Patron CRM clasico (panel
+     "about" a la izquierda, trabajo al centro).
+   - Valores Yes/No como pills verde/gris (escaneables de un vistazo)
+     y el email como link mailto. Data intacta, solo presentacion.
+   - MOVIL: mismo flujo de Jenny de siempre; Full details sigue
+     siendo UNA tarjeta colapsable, ahora con subtitulos de grupo
+     adentro (se revierte el "open" forzado de v6.3).
+   - Update status: pulido visual puro (hover, foco de inputs,
+     seleccion mas clara) — cero cambios de logica, ids o flujo.
+   ------------------------------------------------------------
+   LEAD PANEL v6.3.1 — DETALLE ESTILO DOTSEARCH EN DESKTOP (motor
+   v24.4; solo panel, sin Nueva version del webhook).
+   v6.3.1 corrige el desastre de v6.3 (columna fija que quedaba
+   VACIA en modo admin porque Update status no existe, y reorden del
+   DOM movil). Nueva estructura, decidida por viewport EN EL RENDER:
+   - DESKTOP (>=900px): hero como TARJETA redondeada contenida (como
+     el banner de dotsearch) con la info del lead a la izquierda y
+     Call/WhatsApp a la derecha; debajo, grilla principal (1fr) +
+     lateral (320px). Las tarjetas se REPARTEN segun existan:
+     principal = notas + insurance + update status; lateral = full
+     details (abierto) + activity. Si la principal queda vacia (modo
+     admin sin notas), la lateral pasa a ser la columna unica
+     centrada — jamas una columna fantasma.
+   - MOVIL: EXACTAMENTE el flujo original de Jenny — orden del DOM
+     notas > insurance > activity > details > status, botones
+     solapados al hero, cero cambios (se revierte el reorden v6.3).
+   - Tarjetas con el lenguaje del modal (titulos uppercase con
+     divisor) y modal: autoridad vacia = linea explicativa (v6.3).
+   ------------------------------------------------------------
+   LEAD PANEL v6.2 — FASE 2: CARRIER PROFILE (requiere motor v24.4).
+   v6.2: el modal de Insurance se reestructura estilo dotsearch,
+   manteniendo paleta y tipografia del panel:
+   - Hero oscuro con el nombre legal del carrier (QCMobile), badges
+     DOT / MC y stat boxes grandes de POWER UNITS y DRIVERS.
+   - Dos tabs: Insurance (todo el contenido v6.1, intacto en logica)
+     y Carrier (Operation + Authority, Safety con barras OOS driver/
+     vehicle contra promedio nacional, Safety Rating honesto,
+     Crashes 24m, Mileage/MCS-150 del Census).
+   - Tolerancia total a faltantes: sin carrier.prof (JSON pre-v24.4
+     o cache en transicion) el tab dice "profile not loaded yet";
+     sin m150, "MCS-150 data not available"; carrier.exists false =>
+     el tab Carrier ni aparece; safetyRating null => "Not Available".
+   - Barras OOS: verde bajo el promedio nacional, rojo encima, con
+     marcador del promedio y conteo "X of Y inspections OOS".
+   - Cero emojis; retrocompatible con JSONs v24.0-v24.3.
+   ------------------------------------------------------------
+   LEAD PANEL v6.1 — INSURANCE INTEL (requiere motor v24.3).
+   v6.1: chip de lista minimo (texto fijo "FMCSA filing", el color
+   cuenta la historia); banda roja "DOT not found" cuando QCMobile
+   dice que el numero no existe (mal dictado); el no_filing muestra
+   el nombre del carrier segun FMCSA cuando se conoce.
+   ------------------------------------------------------------
+   LEAD PANEL v6.0 — INSURANCE INTEL (requiere motor v24).
+   v6.0: inteligencia de seguros FMCSA, condicional al DOT:
+   - Lista: leads con DOT llevan UNA linea discreta (dot de color +
+     aseguradora). Rojo = cancelacion pendiente; ambar = sin seguro
+     activo / sin filing / renovacion <= 90 dias; verde suave = OK;
+     gris = data pendiente. Leads sin DOT: tarjeta identica, cero
+     cambios de layout.
+   - Detalle: fila "Insurance" bajo las notas; al tocarla se abre el
+     Insurance Intel — bottom sheet en movil, modal centrado en
+     desktop (>=900px). Secciones: estado actual (aseguradora, tipo
+     humano, efectiva, renovacion proyectada por aniversario, banda
+     de cancelacion pendiente), filings activos adicionales,
+     historial (deduplicado; sin duracion si las fechas del feed
+     vienen incoherentes), metricas derivadas y pie con updated_at +
+     link a SAFER. Historial limitado a los ultimos 20 filings.
+   - Con DOT sin data: la fila dice "Insurance - tap to load" y el
+     tap dispara api=insurance (reintento con throttle en el motor).
+   - Formularios BMC en lenguaje humano: 91/91X Liability (BI&PD),
+     34 Cargo, 84 Surety Bond, 85 Trust Fund; otros = "Form XX"
+     (nunca se inventa un mapeo no confirmado).
+   - Cero emojis en toda la feature; indicadores por CSS.
+   ------------------------------------------------------------
+   LEAD PANEL v5.5 — HUMANO ESTRICTO EN SAVE Y CALL (auditoría).
+   v5.5: api=save y api=call exigen humano === true, sin fallback de
+   tiempo. Los "clicks" sintéticos de los sandboxes (el.click()) NO
+   disparan pointerdown/touchstart; el dedo de Jenny sí — su primer
+   tap marca humano antes de que cualquier handler de click corra
+   (listeners en capture). Un escáner jamás puede guardar un status
+   ni registrar una llamada. Costo para Jenny: cero.
+   ------------------------------------------------------------
+   LEAD PANEL v5.4 — PRUEBA DE HUMANO + CONTADORES EXTENDIDOS
+   (requiere motor v23.3).
+   v5.4:
+   1. ANTI-ESCÁNER: cargar el detalle ya NO registra la apertura.
+      Al primer gesto real (touch / scroll / tecla / mouse) con la
+      página visible, se dispara api=opened UNA vez. Los sandboxes
+      de los escáneres de correo renderizan pero no interactúan →
+      se acabaron las aperturas fantasma. api=call además exige
+      humano previo o 2.5s de página cargada (los auto-clickers de
+      los escáneres actúan al instante).
+   2. CONTADOR EN TODOS LOS ESTADOS VIVOS: New (desde envío),
+      Opened (desde apertura), Called/Contacted/Not Reached/
+      Follow-Up/Quoted (desde la última acción de Jenny). Bound /
+      Sold, Declined y Dead / Lost NO llevan contador.
+   3. Vista All: Bound / Sold, Declined y Dead / Lost ya no aparecen
+      en "Everything Else" — solo con los chips Sold / Closed (la
+      búsqueda sí los encuentra por nombre).
+   ------------------------------------------------------------
+   LEAD PANEL v5.3 — ORDEN POR ÚLTIMA ACCIÓN EN LAS SECCIONES.
+   v5.3: dentro de cada sección de acción, los leads se ordenan por
+   el MISMO timestamp del contador, lo más reciente arriba:
+   New = envío · Opened = apertura · Called = última acción de
+   Jenny (updated_ts). El timer queda ascendente dentro del grupo
+   (arriba lo recién tocado, abajo lo más frío). "Everything Else"
+   conserva el orden por fecha de envío. Solo cambia el panel.
+   ------------------------------------------------------------
+   LEAD PANEL v5.2 — CONTADORES VIVOS + MARCADOR DE VERSIÓN.
+   v5.2 (requiere motor v23.2: opened_ts/updated_ts en api=list):
+   - Contador de tiempo pequeño en la tarjeta, bajo el ID y la hora:
+     New / Transferred = desde el envío · Opened = desde la apertura
+     · Called = desde que pasó a Called (LAST_UPDATED). Cualquier
+     otro estado NO lleva contador. Formato 32m / 3h 12m / 2d 4h;
+     gris <1h, ámbar 1-24h, rojo 24h+. Se refresca con el poll de
+     60s y con un tick local cada 60s.
+   - Encabezados de la vista All: "New / Transferred — Open Now" →
+     "Opened — Needs Action" → "Called — Pending Status" →
+     "Everything Else".
+   - "v5.2" visible al pie de la lista para VERIFICAR el deploy
+     (si no se ve, GitHub Pages sirve el archivo viejo).
+   ------------------------------------------------------------
+   LEAD PANEL v5.1 — SECCIÓN "Called — pending update".
+   v5.1: en la vista All, la lista se agrupa New leads → Opened —
+   needs action → Called — pending update → Everything else. Chip
+   de filtro "Called" nuevo. Nada más cambia sobre v5.
+   ------------------------------------------------------------
+   LEAD PANEL v5 — CALL TRACKING (requiere motor v23).
+   v5: cada tap en Call dispara api=call (fire-and-forget: si la red
+   falla, la llamada de Jenny NO se bloquea — el conteo se pierde,
+   nunca la llamada). El motor cuenta la llamada (columna CALLS),
+   escribe TIME TO CALL la primera vez, avanza el status a "Called"
+   SOLO desde New / Transferred u Opened y avisa a Rodrigo por
+   Telegram en cada llamada. El modo ADMIN no registra llamadas.
+   El encabezado del detalle muestra el conteo ("· 3 calls") y el
+   pill gana el color de "Called". El prompt post-llamada ("How did
+   the call go?") sigue igual: es la vía natural para salir de
+   "Called" hacia Contacted / Not Reached.
+   ------------------------------------------------------------
+   LEAD PANEL v4.4 — RENDIMIENTO (requiere motor v21.5).
+   v4.4: percepción de instantaneidad, sin cambios de flujo:
+   - La lista se pinta AL INSTANTE desde la última copia conocida
+     (localStorage 'jl_lista_v1') y se refresca en segundo plano.
+     La copia se borra al cerrar sesión o al vencer la sesión.
+   - Al tocar un lead, el encabezado (nombre, negocio, estado,
+     Call/WhatsApp) se pinta de inmediato con los datos de la lista;
+     el detalle completo llega detrás. Los links de correo (?id&t sin
+     lista) conservan el spinner de siempre.
+   - Modo admin: se elimina el ping previo — el motor v21.5 responde
+     admin_expired sin registrar apertura si la sesión venció.
+   - La lista también se auto-refresca en modo ADMIN (paridad con el
+     panel de Hector v1.1).
+   - preconnect a script.google.com / script.googleusercontent.com.
+   ------------------------------------------------------------
+   LEAD PANEL v4.3.1 — comisión del agente en % + término de la póliza.
+   v4.3.1: SOLO cambia la var API (motor v21 standalone: nueva URL
+   /exec). Cero cambios funcionales para Jenny.
+   v4.3: en el formulario Sold, Agent commission ahora es PORCENTAJE
+   (6-9% típico, validado 0-100) y se agrega el término de la póliza
+   (6 o 12 meses, obligatorio, default 12). El backend v20 calcula
+   renewal (Sold At + término) y expected pay (Sold At + 1 mes).
+   v4.2 (historial): lista + buscador + filtros + detalle.
+   v4.2: en la vista All, sección "Opened — needs action" entre
+   "New leads" y "Everything else" (leads que Jenny abrió y dejó sin
+   registrar estado recuperan visibilidad).
+   v4.1: MODO ADMIN para Rodrigo — entrar con ?admin=1 (código de 6
+   dígitos a SU correo, sesión 30 días en localStorage 'jl_admin').
+   En modo admin: abrir un lead NO registra apertura ni cambia el
+   estado (fetch con &adm=), y el detalle es SOLO LECTURA (sin
+   botones de estado ni prompt post-llamada). Badge ADMIN visible.
+   Autenticación de Jenny igual que v4; los links por-lead (?id&t)
+   siguen entrando directo al detalle sin sesión.
+   ============================================================ */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--ink:#17233b;--paper:#f2f4f7;--line:#e7eaf0;--sub:#5a6b85;--wa:#1fab55}
+html{background:#e9edf2}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#e9edf2;margin:0;padding:0;color:#101828}
+#app{max-width:520px;margin:0 auto;padding:0 0 96px;background:var(--paper);min-height:100vh}
+@media (min-width:700px){
+  #app{margin:28px auto 40px;border-radius:18px;overflow:hidden;box-shadow:0 8px 40px rgba(16,24,40,.14);min-height:calc(100vh - 68px)}
+}
+
+/* ── Header oscuro ── */
+.hero{background:var(--ink);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 20px 54px}
+.hero.flat{padding-bottom:48px}
+.hero .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:1.6px;color:#8fa3c4;text-transform:uppercase}
+.pill{color:#fff;font-size:12px;font-weight:700;padding:5px 13px;border-radius:999px;white-space:nowrap}
+.hero h1{margin:0;font-size:27px;font-weight:800;letter-spacing:-.4px;line-height:1.15}
+.hero .biz{margin:6px 0 0;font-size:14.5px;color:#c3cede}
+.hero .chips{margin-top:12px}
+.chip{display:inline-block;background:rgba(255,255,255,.12);color:#e7edf7;font-size:12px;font-weight:600;padding:5px 11px;border-radius:999px;margin:0 6px 6px 0;border:1px solid rgba(255,255,255,.14)}
+.backlink{display:inline-flex;align-items:center;gap:6px;color:#c3cede;font-size:13.5px;font-weight:700;text-decoration:none;background:none;border:0;cursor:pointer;padding:0;margin:0 0 10px}
+
+/* ── Acciones primarias (encimadas al header del detalle) ── */
+.acts{display:flex;gap:10px;margin:-32px 16px 14px}
+.act{flex:1;display:block;text-align:center;padding:15px;border-radius:14px;text-decoration:none;font-weight:800;font-size:15.5px;box-shadow:0 4px 14px rgba(23,35,59,.18)}
+.act.call{background:#fff;color:var(--ink)}
+.act.wa{background:var(--wa);color:#fff}
+
+.wrap{padding:0 16px;background:var(--paper)}
+.card{background:#fff;border-radius:16px;padding:16px 18px;margin-bottom:12px;border:1px solid var(--line)}
+.label{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;margin:0 0 8px;text-transform:uppercase}
+/* v6.3: titulos de tarjeta del DETALLE con divisor (lenguaje del modal) */
+.card>.label{padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.card.warn>.label{border-bottom-color:#f3e3bd}
+.notes ul{margin:0;padding-left:18px}
+.notes li{font-size:14.5px;color:#344054;margin-bottom:5px;line-height:1.45}
+.card.warn{background:#fffaeb;border-color:#fedf89}
+.card.warn .label{color:#b54708}
+.card.warn li{color:#7a3b06;font-weight:600}
+.card.act-prev{background:#f8fafc;position:relative}
+/* v6.6: actividad con tope + degradado + Show all */
+.act-prev.clamp .actbody{max-height:210px;overflow:hidden}
+.actfade{display:none}
+.act-prev.clamp .actfade{display:block;position:absolute;left:0;right:0;bottom:44px;height:60px;background:linear-gradient(rgba(248,250,252,0),#f8fafc)}
+.actmore{display:none;width:100%;margin-top:8px;padding:9px;border:1px solid var(--line);border-radius:10px;background:#fff;color:#344054;font-size:13px;font-weight:700;cursor:pointer}
+.act-prev.clamp .actmore{display:block}
+.drow{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:7px 0;border-bottom:1px solid #f2f4f7}
+.drow:last-child{border-bottom:0}
+.drow span{color:var(--sub)}
+.drow b{text-align:right}
+/* v6.4: subtitulos de grupo dentro de Full details (movil) */
+.gsub{font-size:10.5px;font-weight:800;letter-spacing:1.2px;color:#b3bcc9;text-transform:uppercase;margin:13px 0 2px}
+.inner .gsub:first-child{margin-top:4px}
+/* v6.4: pills Yes/No y link de email */
+.pv{display:inline-block;font-size:12px;font-weight:700;padding:3px 12px;border-radius:999px}
+.pv.yes{background:#e6f4ee;color:#12805c}
+.pv.no{background:#eef0f4;color:#667085}
+.dlink{color:#17233b;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
+/* v6.5/v6.6: tarjeta unica Lead details — grilla etiqueta/valor,
+   valor alineado a la IZQUIERDA (nada pegado al borde derecho) */
+.card.dets .drow{display:grid;grid-template-columns:130px minmax(0,1fr);gap:4px 12px;padding:6px 0;font-size:13.5px;align-items:start}
+.card.dets .drow b{text-align:left;word-break:break-word}
+.card.dets .drow .pv{justify-self:start}
+.card.dets .gsub{margin:14px 0 3px}
+.card.dets .gsub:first-of-type{margin-top:2px}
+/* v6.5: hoja de confirmacion de guardado */
+.sheet .sbody .cbtn{display:block;width:100%;margin-top:14px;padding:15px;border-radius:13px;border:0;background:var(--ink);color:#fff;font-size:15.5px;font-weight:800;cursor:pointer}
+.sheet .sbody .cbtn:disabled{background:#c6cdd8}
+.sheet .sbody label{display:block;font-size:13px;font-weight:700;color:#344054;margin:12px 0 6px}
+.drow b{text-align:right;color:#101828}
+details.card{padding:0;overflow:hidden}
+details.card summary{list-style:none;cursor:pointer;padding:15px 18px 12px;font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);margin:0 0 2px}
+details.card:not([open]) summary{border-bottom:0}
+details.card summary::after{content:'+';font-size:16px;color:#98a2b3;font-weight:600;letter-spacing:0}
+details[open].card summary::after{content:'–'}
+details.card .inner{padding:4px 18px 14px}
+
+/* ── Grilla de estados 2×3 ── */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.st{position:relative;display:flex;align-items:center;gap:9px;padding:14px 12px;border:1.5px solid var(--line);border-radius:13px;background:#fff;color:#101828;font-size:14.5px;font-weight:700;cursor:pointer;text-align:left;transition:border-color .12s,background .12s}
+.st:hover{border-color:#b9c2d0}
+.st .dot{width:11px;height:11px;border-radius:50%;background:var(--c);flex:none}
+.st.sel{border-color:var(--c);background:color-mix(in srgb, var(--c) 9%, #fff);box-shadow:0 0 0 1px var(--c)}
+@supports not (background:color-mix(in srgb,#fff 9%,#fff)){.st.sel{background:#f8fafc}}
+.curtag{position:absolute;top:50%;right:10px;transform:translateY(-50%);background:#eef0f4;color:#475467;font-size:9px;font-weight:800;letter-spacing:.8px;padding:3px 9px;border-radius:999px}
+.ctx{display:none;background:#f8fafc;border:1px solid var(--line);border-radius:13px;padding:13px;margin-top:11px}
+label{display:block;font-size:13px;font-weight:600;color:#344054;margin:9px 0 5px}
+label:first-child{margin-top:0}
+.req{color:#d92d20;font-weight:600;font-size:11px}
+.opt{color:#98a2b3;font-weight:500;font-size:11px}
+.hint{margin:4px 0 0;font-size:12px;color:var(--sub)}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d0d5dd;border-radius:11px;font-size:16px;background:#fff;color:#101828}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#17233b;box-shadow:0 0 0 3px rgba(23,35,59,.08)}
+textarea{height:62px;resize:vertical}
+.errline{color:#d92d20;font-size:14px;font-weight:600;min-height:18px;margin:9px 2px 0}
+
+/* ── Barra de guardado fija ── */
+.savebar{position:fixed;bottom:0;left:0;right:0;margin:0 auto;max-width:520px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:rgba(242,244,247,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line)}
+.save{display:block;width:100%;padding:16px;border:0;border-radius:13px;font-size:16px;font-weight:800;color:#fff;background:var(--ink);cursor:pointer}
+.save:disabled{background:#c6cdd8;cursor:default}
+
+/* ── Éxito / errores ── */
+.center{text-align:center;padding:60px 24px;background:var(--paper)}
+.okmark{width:66px;height:66px;line-height:66px;border-radius:50%;background:#12805c;color:#fff;font-size:34px;font-weight:700;margin:0 auto 14px}
+.center h2{margin:0 0 6px;font-size:22px}
+.center .muted{color:var(--sub);font-size:14.5px;margin:6px 0 0}
+.btn-back{display:inline-block;margin:22px 5px 0;padding:14px 26px;border-radius:13px;background:var(--ink);color:#fff;text-decoration:none;font-weight:800;border:0;font-size:15px;cursor:pointer}
+.btn-back.sec{background:#fff;color:var(--ink);border:1.5px solid var(--line)}
+.spin{width:36px;height:36px;border:4px solid var(--line);border-top-color:var(--ink);border-radius:50%;margin:80px auto;animation:g .8s linear infinite}
+
+/* ── Prompt post-llamada ── */
+.callprompt{position:fixed;bottom:calc(84px + env(safe-area-inset-bottom));left:12px;right:12px;margin:0 auto;max-width:496px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;box-shadow:0 8px 30px rgba(16,24,40,.18);z-index:20}
+.callprompt p{margin:0 0 10px;font-size:15px;font-weight:800;color:#101828}
+.callprompt .cp-row{display:flex;gap:9px}
+.cp-btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:14.5px;font-weight:800;cursor:pointer}
+.cp-yes{background:#12805c;color:#fff}
+.cp-no{background:#eef0f4;color:#101828}
+.cp-later{display:block;width:100%;margin-top:8px;background:none;border:0;color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;padding:6px}
+
+/* ── LISTA ── */
+.searchwrap{margin:-26px 16px 12px;position:relative}
+.searchwrap input{padding:15px 16px;border-radius:14px;border:1px solid var(--line);box-shadow:0 4px 14px rgba(23,35,59,.14);font-size:16px}
+.filters{display:flex;gap:8px;overflow-x:auto;padding:2px 16px 12px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.fl{flex:none;padding:8px 15px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#344054;font-size:13.5px;font-weight:700;cursor:pointer}
+.fl.on{background:var(--ink);border-color:var(--ink);color:#fff}
+.fl .n{opacity:.65;font-weight:600;margin-left:4px}
+.groupttl{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;margin:16px 2px 8px;display:flex;align-items:center;gap:8px}
+.groupttl .badge{background:#0e7490;color:#fff;border-radius:999px;font-size:11px;padding:2px 9px;letter-spacing:0}
+.lead{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:15px;padding:14px 15px;margin-bottom:9px;cursor:pointer;font-family:inherit}
+.lead:active{background:#f8fafc}
+.lead .lmain{flex:1;min-width:0}
+.lead .lname{font-size:15.5px;font-weight:800;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lsub{font-size:13px;color:var(--sub);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lcov{font-size:12px;color:#475467;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lead .lright{flex:none;text-align:right}
+.lead .lpill{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.lead .ldate{font-size:11.5px;color:#98a2b3;margin-top:6px;font-weight:600}
+.lead .ltimer{display:block;font-size:10.5px;font-weight:800;margin-top:3px;letter-spacing:.2px}
+.lt-ok{color:#98a2b3}.lt-warn{color:#d97706}.lt-late{color:#dc2626}
+.newdot{width:8px;height:8px;border-radius:50%;background:#0e7490;flex:none;margin-right:-4px}
+.empty{color:var(--sub);font-size:14.5px;text-align:center;padding:34px 10px}
+.refresh-note{color:#98a2b3;font-size:12px;text-align:center;padding:6px 0 18px}
+
+/* ── Insurance Intel (v6) ── */
+.inschip{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:#667085;margin-top:3px;min-width:0}
+.inschip .idot{width:7px;height:7px;border-radius:50%;flex:none}
+.inschip .itxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.id-red{background:#dc2626}.id-amber{background:#d97706}.id-ok{background:#12805c}.id-gray{background:#98a2b3}
+.insrow{display:flex;align-items:center;gap:10px;width:100%;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:12px;cursor:pointer;font-family:inherit;text-align:left}
+.insrow:active{background:#f8fafc}
+.insrow .idot{width:9px;height:9px;border-radius:50%;flex:none}
+.insrow .imain{flex:1;min-width:0}
+.insrow .ittl{font-size:11px;font-weight:700;letter-spacing:1.4px;color:#98a2b3;text-transform:uppercase;display:block}
+.insrow .ival{font-size:14.5px;font-weight:700;color:#101828;display:block;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.insrow .ichev{flex:none;color:#98a2b3;font-size:20px;font-weight:600;line-height:1}
+.ov{position:fixed;inset:0;background:rgba(16,24,40,.5);z-index:40;opacity:0;transition:opacity .18s}
+.ov.on{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:0;margin:0 auto;max-width:520px;max-height:88vh;background:var(--paper);border-radius:20px 20px 0 0;z-index:41;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .22s ease-out}
+.sheet.on{transform:translateY(0)}
+.sheet .shead{flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--line);background:#fff;border-radius:20px 20px 0 0}
+.sheet .shead .sttl{font-size:16px;font-weight:800;color:#101828}
+.sheet .shead .ssub{font-size:12px;color:var(--sub);font-weight:600;margin-top:2px}
+.sheet .sclose{border:0;background:#eef0f4;color:#101828;width:32px;height:32px;border-radius:50%;font-size:16px;font-weight:700;cursor:pointer;flex:none}
+.sheet .sbody{overflow-y:auto;padding:14px 16px calc(20px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.icard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px 16px;margin-bottom:11px}
+.icard .label{margin-bottom:10px}
+.iband{border-radius:12px;padding:11px 13px;font-size:13.5px;font-weight:700;margin-bottom:11px;line-height:1.4}
+.iband.red{background:#fef3f2;border:1px solid #fecdca;color:#b42318}
+.iband.amber{background:#fffaeb;border:1px solid #fedf89;color:#b54708}
+.iins{font-size:17px;font-weight:800;color:#101828;line-height:1.25;margin:0 0 2px}
+.itype{font-size:13px;color:var(--sub);font-weight:600;margin:0 0 10px}
+.imetrics{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:11px}
+.im{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 8px;text-align:center}
+.im b{display:block;font-size:15px;color:#101828}
+.im span{display:block;font-size:10.5px;color:#98a2b3;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:3px}
+.ih{padding:10px 0;border-bottom:1px solid #f2f4f7}
+.ih:last-child{border-bottom:0}
+.ih .ihi{font-size:13.5px;font-weight:700;color:#101828}
+.ih .ihd{font-size:12px;color:var(--sub);margin-top:2px;font-weight:600}
+.ih .iht{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.iht.rep{background:#eef4ff;color:#1d4ed8}.iht.can{background:#fef3f2;color:#b42318}
+.ifoot{font-size:11.5px;color:#98a2b3;text-align:center;padding:4px 4px 2px;line-height:1.6}
+.ifoot a{color:#5a6b85;font-weight:700;text-decoration:none;border-bottom:1px solid #d0d5dd}
+/* v6.2: titulos de seccion del modal con divisor (estructura dotsearch) */
+.icard .label{padding-bottom:8px;border-bottom:1px solid var(--line)}
+/* v6.2: hero del modal */
+.shero{flex:none;background:linear-gradient(135deg,#17233b 0%,#233553 100%);color:#fff;padding:16px 18px 14px;border-radius:20px 20px 0 0;position:relative}
+.shero .sclose{position:absolute;top:14px;right:14px;background:rgba(255,255,255,.14);color:#fff}
+.shero .shname{font-size:18px;font-weight:800;line-height:1.2;margin:0 34px 3px 0;letter-spacing:.2px}
+.shero .shloc{font-size:12px;color:#cbd5e1;font-weight:600;margin:0 0 10px}
+.shero .shpills{display:flex;flex-wrap:wrap;gap:6px}
+.pchip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;letter-spacing:.3px}
+.pchip.ok{background:#12805c;color:#fff}
+.pchip.slate{background:rgba(255,255,255,.16);color:#e2e8f0}
+.pchip.red{background:#b42318;color:#fff}
+.shstats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.shs{background:#fff;border-radius:13px;padding:10px 8px;text-align:center}
+.shs b{display:block;font-size:22px;color:#17233b;line-height:1.1}
+.shs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
+/* v6.2: tabs */
+.stabs{flex:none;display:flex;background:#fff;border-bottom:1px solid var(--line)}
+.stab{flex:1;border:0;background:none;font-family:inherit;font-size:13.5px;font-weight:700;color:#667085;padding:12px 4px 10px;cursor:pointer;border-bottom:2.5px solid transparent} /* v6.14: 4 tabs */
+.stab.on{color:#17233b;border-bottom-color:#17233b}
+/* v6.14 (Fase 4): 4 tabs en pantallas muy angostas + tabla BASIC +
+   timeline. OJO: nada de esto toca .sheet global (Confirm & save). */
+@media (max-width:340px){.stab{font-size:12px;padding:12px 2px 10px}}
+.btbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.btbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:#98a2b3;font-weight:700;text-align:right;padding:0 0 6px 8px}
+.btbl th:first-child{text-align:left;padding-left:0}
+.btbl td{padding:7px 0 7px 8px;border-top:1px solid var(--line);text-align:right;font-weight:700;color:#17233b}
+.btbl td:first-child{text-align:left;padding-left:0;font-weight:600;color:#344054}
+.btbl td.boos{color:#b42318}
+.tl{position:relative;padding:2px 0 2px 16px}
+.tl:before{content:'';position:absolute;left:4px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.tle{position:relative;padding:0 0 14px}
+.tle:last-child{padding-bottom:0}
+.tle:before{content:'';position:absolute;left:-16px;top:3px;width:8px;height:8px;border-radius:50%;background:#98a2b3;border:2px solid #fff;box-shadow:0 0 0 1px #e4e7ec}
+.tle.ok:before{background:#12805c}
+.tle.gap:before{background:#b42318}
+.tlt{font-size:12.5px;font-weight:700;color:#17233b;margin:0}
+.tle.gap .tlt{color:#b42318}
+.tlm{font-size:11.5px;color:#667085;margin:1px 0 0}
+/* v6.16 (Fase 4B): filas de Related companies */
+.relr+.relr{border-top:1px solid var(--line);margin-top:9px;padding-top:9px}
+/* v6.18 (Fase 4D): bullets de talking points */
+.tpul{margin:4px 0 0;padding-left:17px}
+.tpul li{font-size:12.5px;font-weight:600;color:#17233b;margin:4px 0;line-height:1.35}
+/* v6.2: filas y chips del tab Carrier */
+.achips{display:flex;flex-wrap:wrap;gap:6px}
+.achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
+.achip.ok{background:#e6f4ee;color:#12805c}
+/* v6.2: barras OOS vs promedio nacional */
+.oosb{padding:10px 0;border-bottom:1px solid #f2f4f7}
+.oosb:last-child{border-bottom:0}
+.oosb .ot{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:#101828}
+.obadge{font-size:11px;font-weight:800;padding:2px 9px;border-radius:999px}
+.obadge.ok{background:#e6f4ee;color:#12805c}
+.obadge.bad{background:#fef3f2;color:#b42318}
+.obadge.na{background:#eef0f4;color:#98a2b3}
+.otrack{position:relative;height:6px;background:#eef0f4;border-radius:999px;margin:8px 0 6px;overflow:visible}
+.ofill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;min-width:3px}
+.ofill.ok{background:#12805c}.ofill.bad{background:#dc2626}
+.omark{position:absolute;top:-3px;width:2px;height:12px;background:#667085;border-radius:1px}
+.ocap{font-size:11.5px;color:var(--sub);font-weight:600;line-height:1.45}
+.ocap .below{color:#12805c;font-weight:700}
+.ocap .above{color:#b42318;font-weight:700}
+/* v6.10: iconos SVG inline (no emojis) + acordeon por vehiculo */
+.ic{width:14px;height:14px;vertical-align:-2px;margin-right:6px;flex:none}
+.label .ic{width:13px;height:13px;color:#98a2b3}
+.fitem{cursor:pointer;-webkit-tap-highlight-color:transparent;flex-wrap:wrap}
+.eqrow{flex-wrap:wrap}
+.fvin{overflow-wrap:anywhere;word-break:break-all;max-width:100%}
+@media (max-width:420px){ .fvin{font-size:9.5px} }
+.fitem .fvin{color:#1d4ed8}
+.fchev{flex:none;color:#98a2b3;transition:transform .18s ease}
+.fitem.open .fchev{transform:rotate(180deg)}
+.fdet{display:none;background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:4px 12px;margin:2px 0 8px}
+.fdet.on{display:block}
+.fdet .drow span{font-size:12px}
+.fdet .drow b{font-size:12px}
+.fdet .vlist{border-top:0;margin-top:0}
+/* v6.9: el modal de seguro NO cambia de tamano entre tabs.
+   OJO: solo sheet--ins — el sheet de Confirm & save sigue auto. */
+.sheet--ins{height:88vh}
+@media (min-width:900px){
+  .sheet--ins{width:640px;max-width:calc(100vw - 24px);height:82vh}
+}
+/* v6.9: resumen del tab Inspections + tabla de equipo + contactos */
+.vchip{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.3px;flex:none}
+.vchip.warn{background:#fff8e6;color:#a15c00}
+.vchip.oos{background:#fef3f2;color:#b42318}
+.eqrow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f2f4f7}
+.eqrow:last-child{border-bottom:0}
+.eqrow b{font-size:12px;color:#101828}
+.eqmeta{display:block;font-size:10px;color:#98a2b3;font-weight:700;margin-top:1px}
+.vinlink{font-size:11px;font-weight:700;letter-spacing:.4px;color:#1d4ed8;text-decoration:underline;text-underline-offset:2px}
+/* v6.8: tab Inspections + flota */
+.inh{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.inh b{font-size:13.5px;color:#101828}
+.inloc{display:block;font-size:11.5px;color:var(--sub);font-weight:600;margin-top:1px}
+.inbdg{display:flex;gap:5px;flex:none}
+.obadge.amb{background:#fff8e6;color:#a15c00}
+.iband.amber{background:#fff8e6;color:#a15c00}
+.vlist{margin-top:8px;border-top:1px solid #f2f4f7}
+.vitem{padding:8px 0;border-bottom:1px solid #f2f4f7}
+.vitem:last-child{border-bottom:0}
+.vitem.voos .vd{color:#b42318}
+.vd{font-size:12.5px;font-weight:700;color:#101828;line-height:1.4}
+.vm{font-size:11px;color:#98a2b3;font-weight:700;margin-top:2px}
+.vtag{font-size:9.5px;font-weight:800;padding:1px 7px;border-radius:999px;letter-spacing:.4px;vertical-align:1px}
+.vtag.bad{background:#fef3f2;color:#b42318}
+.fitem{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f2f4f7}
+.fitem:last-child{border-bottom:0}
+.fitem b{font-size:12.5px;color:#101828}
+.ftype{display:block;font-size:10px;color:#98a2b3;font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin-top:1px}
+.fvin{font-size:11px;font-weight:700;letter-spacing:.4px;color:#667085}
+/* v6.2: crash boxes */
+.cstats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.cs{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center}
+.cs b{display:block;font-size:17px;color:#101828}
+.cs span{display:block;font-size:9.5px;color:#98a2b3;font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-top:3px}
+@media (min-width:900px){
+  .sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-46%) scale(.98);opacity:0;max-width:640px;max-height:82vh;border-radius:20px}
+  .sheet.on{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .sheet .shead{border-radius:20px 20px 0 0}
+  .imetrics{gap:11px}
+}
+
+/* ── OTP ── */
+.otpwrap{padding:0 20px 30px;background:var(--paper)}
+/* v6.7: pantalla de inicio a pantalla completa */
+.authwrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#141e33 0%,#17233b 45%,#24395c 100%);padding:40px 20px;box-sizing:border-box}
+.authbrand{text-align:center;margin-bottom:28px}
+.authbrand .eyebrow{color:#8fa3c4}
+.authbrand h1{margin:8px 0 8px;font-size:31px;font-weight:800;letter-spacing:-.4px;color:#fff}
+.authbrand p{margin:0;font-size:14.5px;color:#c3cede}
+.authcard{background:#fff;border-radius:20px;padding:26px 24px;width:100%;max-width:420px;box-sizing:border-box;box-shadow:0 24px 60px rgba(8,15,30,.45)}
+.authcard h2{margin:0 0 8px;font-size:18px;color:#101828}
+.authcard p{margin:0 0 16px;font-size:14px;color:var(--sub);line-height:1.5}
+.authfoot{margin-top:20px;font-size:12px;color:#8fa3c4;text-align:center}
+.otpcard{background:#fff;border:1px solid var(--line);border-radius:18px;padding:24px 20px;margin-top:-26px;box-shadow:0 4px 18px rgba(23,35,59,.12)}
+.otpcard h2{margin:0 0 6px;font-size:19px}
+.otpcard p{margin:0 0 16px;font-size:14px;color:var(--sub);line-height:1.5}
+.otpcode{letter-spacing:10px;text-align:center;font-size:24px;font-weight:800}
+.btn-full{display:block;width:100%;margin-top:14px;padding:15px;border-radius:13px;border:0;background:var(--ink);color:#fff;font-size:15.5px;font-weight:800;cursor:pointer}
+.btn-full:disabled{background:#c6cdd8}
+.btn-ghost{display:block;width:100%;margin-top:10px;padding:12px;border-radius:13px;border:0;background:none;color:var(--sub);font-size:13.5px;font-weight:700;cursor:pointer}
+/* ── Desktop (≥900px): lista a dos columnas, detalle en columna centrada ── */
+@media (min-width:900px){
+  #app{max-width:940px}
+  .hero{padding-left:36px;padding-right:36px}
+  .hero h1{font-size:32px}
+  .searchwrap{margin-left:36px;margin-right:36px}
+  .filters{padding-left:36px;padding-right:36px}
+  .wrap{padding-left:36px;padding-right:36px}
+  #rows{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:stretch}
+  #rows .groupttl{grid-column:1/-1;margin-bottom:2px}
+  #rows .lead{margin-bottom:0;min-width:0}
+  #rows .empty{grid-column:1/-1}
+  .otpwrap{max-width:620px;margin:0 auto}
+  /* v6.3.1: DETALLE en desktop, estructura dotsearch. El JS arma un
+     DOM distinto por viewport: aqui solo se estilan .det-hero (hero
+     tarjeta con acciones a la derecha) y .dmain/.dside (grilla). */
+  #app{max-width:1040px}
+  .hero.det-hero{margin:20px 36px 0;border-radius:18px;padding:26px 30px 26px}
+  .hero.det-hero .row{justify-content:flex-start;gap:12px}
+  .hero.det-hero .hinner{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
+  .hero.det-hero .hmain{min-width:0}
+  .hacts{display:flex;gap:10px;flex:none;margin-bottom:2px}
+  .hacts .act{flex:none;width:180px;padding:14px 0;text-align:center}
+  /* v6.5: sidebar de referencia a la IZQUIERDA (mas ancha), flujo a la derecha */
+  .wrap.det{margin-top:16px;display:grid;grid-template-columns:400px minmax(0,1fr);gap:0 16px;align-items:start}
+  .wrap.det.solo{display:block;max-width:720px;margin-left:auto;margin-right:auto}
+  .dmain,.dside{min-width:0}
+  .dside .card, .dside details.card{margin-bottom:12px}
+  .savebar{max-width:940px}
+  .savebar .save{max-width:620px;margin:0 auto}
+}
+@keyframes g{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
+</style>
+</head>
+<body>
+<div id="app"><div class="spin"></div></div>
+
+<script>
+// ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
+var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
+// ===========================================================
+
+var app = document.getElementById('app');
+var COLORES = {'New / Transferred':'#667085','Opened':'#0e7490','Called':'#7c3aed','Contacted':'#12805c',
+  'Not Reached':'#667085','Follow-Up':'#dc6803','Quoted':'#1d4ed8','Bound / Sold':'#14532d',
+  'Declined':'#d92d20','Dead / Lost':'#344054'};
+var ETIQ = {'New / Transferred':'New','Bound / Sold':'Sold','Dead / Lost':'Lost'};
+var OPCIONES = [
+  ['contacted','Contacted','#12805c','Contacted'],
+  ['not_reached','Not Reached','#667085','Not Reached'],
+  ['followup','Follow-Up','#dc6803','Follow-Up'],
+  ['quoted','Quoted','#1d4ed8','Quoted'],
+  ['sold','Sold','#14532d','Bound / Sold'],
+  ['declined','Declined','#d92d20','Declined']
+];
+// Filtros de la lista: [id, etiqueta, estados que agrupa (null = todos)]
+var FILTROS = [
+  ['all','All', null],
+  ['new','New', ['New / Transferred']],
+  ['opened','Opened', ['Opened']],
+  ['called','Called', ['Called']],
+  ['working','In progress', ['Contacted','Not Reached','Follow-Up']],
+  ['quoted','Quoted', ['Quoted']],
+  ['sold','Sold', ['Bound / Sold']],
+  ['closed','Closed', ['Declined','Dead / Lost']]
+];
+
+var SES = null, ADM = null;
+try { SES = localStorage.getItem('jl_session') || null; } catch (e) {}
+try { ADM = localStorage.getItem('jl_admin') || null; } catch (e) {}
+var LISTA = [];            // cache de api=list
+var filtroActivo = 'all';
+var textoBusqueda = '';
+var vistaActual = '';      // 'lista' | 'detalle' | 'otp'
+var LEAD = null, ID = null, T = null;
+var sel = null, selLabel = '';
+var pollTimer = null;
+
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function pillEstado(st, extra){
+  return '<span class="' + (extra || 'pill') + '" style="background:' + (COLORES[st] || '#667085') + '">' +
+    esc(ETIQ[st] || st) + '</span>';
+}
+function guardarSesion(s){ SES = s; try { localStorage.setItem('jl_session', s); } catch (e) {} }
+function borrarSesion(){ SES = null; try { localStorage.removeItem('jl_session'); localStorage.removeItem('jl_lista_v1'); } catch (e) {} }
+function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
+function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); localStorage.removeItem('jl_lista_v1'); } catch (e) {} }
+function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
+
+// ============================================================
+//  ARRANQUE Y NAVEGACIÓN
+//  ?id&t → detalle directo (links de correo, con o sin sesión).
+//  ?admin=1 → login de ADMIN (código al correo de Rodrigo).
+//  Sin parámetros → lista (pide código si no hay sesión).
+// ============================================================
+function arrancar(){
+  var qs = new URLSearchParams(location.search);
+  ID = qs.get('id'); T = qs.get('t');
+  if (qs.get('admin') && !ADM) { verOtp(true); return; }
+  if (ID && T) { verDetalle(ID, T, false); }
+  else if (SES || ADM) { verLista(); }
+  else { verOtp(false); }
+}
+window.addEventListener('popstate', arrancar);
+
+function irADetalle(id, t){
+  history.pushState({}, '', location.pathname + '?id=' + encodeURIComponent(id) + '&t=' + encodeURIComponent(t));
+  verDetalle(id, t, true);
+}
+function volverALista(){
+  cerrarSeguro();
+  history.pushState({}, '', location.pathname);
+  verLista();
+}
+// A la lista (con sesión) o a la pantalla de código (sin sesión).
+function irALeads(){
+  history.pushState({}, '', location.pathname);
+  if (SES || ADM) verLista(); else verOtp(false);
+}
+
+// ============================================================
+//  VISTA: CÓDIGO DE ACCESO
+// ============================================================
+// v4.1: esAdmin=true → código al correo de Rodrigo, sesión jl_admin.
+function verOtp(esAdmin){
+  vistaActual = 'otp';
+  var who = esAdmin ? '&who=admin' : '';
+  // v6.7: pantalla completa centrada. MISMOS ids, MISMA logica.
+  app.innerHTML =
+    '<div class="authwrap">' +
+      '<div class="authbrand">' +
+        '<span class="eyebrow">Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
+        '<h1>' + (esAdmin ? 'Admin access' : 'Welcome, Kateryna') + '</h1>' +
+        '<p>' + (esAdmin ? 'Read-only mode. Opening leads will not affect anything.' : 'Your leads, in one place.') + '</p>' +
+      '</div>' +
+      '<div class="authcard">' +
+        '<h2>Verify it\'s you</h2>' +
+        '<p>Tap the button and we\'ll email a 6-digit code to ' + (esAdmin ? 'Rodrigo\'s inbox' : 'your inbox') + '. You\'ll only need to do this once on this device.</p>' +
+        '<button class="btn-full" id="btn-send">Email me a code</button>' +
+        '<div id="otp-step2" style="display:none">' +
+          '<label style="margin-top:18px">Access code</label>' +
+          '<input id="otp-code" class="otpcode" inputmode="numeric" maxlength="6" placeholder="······" autocomplete="one-time-code">' +
+          '<button class="btn-full" id="btn-verify">Enter</button>' +
+          '<button class="btn-ghost" id="btn-resend">Send a new code</button>' +
+        '</div>' +
+        '<p id="otp-err" class="errline"></p>' +
+      '</div>' +
+      '<p class="authfoot">Secured with one-time email codes.</p>' +
+    '</div>';
+
+  var err = document.getElementById('otp-err');
+  function pedirCodigo(btn){
+    btn.disabled = true; btn.textContent = 'Sending...'; err.textContent = '';
+    fetch(API + '?api=otp_request&t=k' + who).then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { err.textContent = d.error || 'Could not send the code.'; btn.disabled = false; btn.textContent = 'Email me a code'; return; }
+        document.getElementById('btn-send').style.display = 'none';
+        document.getElementById('otp-step2').style.display = 'block';
+        document.getElementById('otp-code').focus();
+        btn.disabled = false;
+      })
+      .catch(function(){ err.textContent = 'Connection error. Try again.'; btn.disabled = false; btn.textContent = 'Email me a code'; });
+  }
+  document.getElementById('btn-send').onclick = function(){ pedirCodigo(this); };
+  document.getElementById('btn-resend').onclick = function(){
+    var b = this; b.disabled = true; b.textContent = 'Sending...';
+    fetch(API + '?api=otp_request&t=k' + who).then(function(r){ return r.json(); })
+      .then(function(d){
+        err.textContent = d.ok ? '' : (d.error || 'Could not send the code.');
+        b.disabled = false; b.textContent = 'Send a new code';
+        if (d.ok) document.getElementById('otp-code').focus();
+      })
+      .catch(function(){ err.textContent = 'Connection error.'; b.disabled = false; b.textContent = 'Send a new code'; });
+  };
+  document.getElementById('btn-verify').onclick = function(){
+    var code = document.getElementById('otp-code').value.trim();
+    if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
+    var b = this; b.disabled = true; b.textContent = 'Checking...'; err.textContent = '';
+    fetch(API + '?api=otp_verify&t=k&code=' + encodeURIComponent(code) + who)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { err.textContent = d.error || 'Incorrect code.'; b.disabled = false; b.textContent = 'Enter'; return; }
+        if (esAdmin) guardarAdmin(d.session); else guardarSesion(d.session);
+        history.pushState({}, '', location.pathname);
+        verLista();
+      })
+      .catch(function(){ err.textContent = 'Connection error. Try again.'; b.disabled = false; b.textContent = 'Enter'; });
+  };
+}
+
+// ============================================================
+//  VISTA: LISTA DE LEADS (buscador + filtros + refresco 60s)
+// ============================================================
+function verLista(){
+  vistaActual = 'lista';
+  // v4.4: pintar AL INSTANTE desde la última lista conocida y traer la
+  // versión fresca en segundo plano (el repintado es imperceptible).
+  if (!LISTA.length) {
+    try { LISTA = JSON.parse(localStorage.getItem('jl_lista_v1') || '[]'); } catch (e) { LISTA = []; }
+    if (!(LISTA instanceof Array)) LISTA = [];
+  }
+  if (LISTA.length) { pintarLista(true); cargarLista(false); }
+  else { app.innerHTML = '<div class="spin"></div>'; cargarLista(true); }
+}
+
+function cargarLista(render){
+  if (!SES && !ADM) { verOtp(false); return; }
+  var auth = ADM ? '&adm=' + encodeURIComponent(ADM) : '&s=' + encodeURIComponent(SES);
+  fetch(API + '?api=list&t=k' + auth)
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) {
+        if (ADM) { borrarAdmin(); verOtp(true); } else { borrarSesion(); verOtp(false); }
+        return;
+      }
+      LISTA = d.leads || [];
+      try { localStorage.setItem('jl_lista_v1', JSON.stringify(LISTA)); } catch (e) {}
+      if (vistaActual === 'lista') pintarLista(render);
+    })
+    .catch(function(){
+      if (render && vistaActual === 'lista') {
+        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+          '<p class="muted">Check your signal.</p>' +
+          '<button class="btn-back" onclick="verLista()">Retry</button></div>';
+      }
+    });
+}
+
+function filtrar(){
+  var f = null;
+  for (var i = 0; i < FILTROS.length; i++) if (FILTROS[i][0] === filtroActivo) f = FILTROS[i];
+  var q = textoBusqueda.trim().toLowerCase();
+  var qDig = q.replace(/\D/g, '');
+  return LISTA.filter(function(l){
+    if (f && f[2] && f[2].indexOf(l.status) === -1) return false;
+    if (!q) return true;
+    var blob = (l.id + ' ' + l.name + ' ' + l.business + ' ' + l.type + ' ' +
+      l.state + ' ' + l.status + ' ' + (l.coverages || []).join(' ')).toLowerCase();
+    if (blob.indexOf(q) !== -1) return true;
+    if (qDig.length >= 3 && l.phone10 && l.phone10.indexOf(qDig) !== -1) return true;
+    return false;
+  });
+}
+
+// v5.4: contador vivo en TODOS los estados hasta cerrar: New (desde
+// el envío), Opened (desde la apertura), Called / Contacted / Not
+// Reached / Follow-Up / Quoted (desde la última acción de Jenny =
+// updated_ts). Bound / Sold, Declined y Dead / Lost: sin contador.
+var SIN_CONTADOR = {'Bound / Sold':1, 'Declined':1, 'Dead / Lost':1};
+function tsContador(l){
+  if (SIN_CONTADOR[l.status]) return 0;
+  if (l.status === 'New / Transferred') return l.sent_ts || 0;
+  if (l.status === 'Opened') return l.opened_ts || l.sent_ts || 0;
+  return l.updated_ts || l.opened_ts || l.sent_ts || 0;
+}
+function htmlContador(l){
+  var ts = tsContador(l);
+  if (!ts) return '';
+  var min = Math.max(0, Math.floor((Date.now() - ts) / 60000));
+  var txt, cls;
+  if (min < 60) txt = min + 'm';
+  else if (min < 1440) txt = Math.floor(min / 60) + 'h ' + (min % 60) + 'm';
+  else txt = Math.floor(min / 1440) + 'd ' + Math.floor((min % 1440) / 60) + 'h';
+  cls = min < 60 ? 'lt-ok' : (min < 1440 ? 'lt-warn' : 'lt-late');
+  return '<span class="ltimer ' + cls + '">\u23F1 ' + txt + '</span>';
+}
+
+function filaLead(l){
+  var esNuevo = l.status === 'New / Transferred';
+  var cov = (l.coverages || []).join(', ');
+  return '<button type="button" class="lead" data-id="' + esc(l.id) + '" data-t="' + esc(l.t) + '">' +
+    (esNuevo ? '<span class="newdot"></span>' : '') +
+    '<span class="lmain">' +
+      '<span class="lname" style="display:block">' + esc(l.name || '-') + '</span>' +
+      '<span class="lsub" style="display:block">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</span>' +
+      (cov ? '<span class="lcov" style="display:block">' + esc(cov) + '</span>' : '') +
+      chipSeguroLista(l) +
+    '</span>' +
+    '<span class="lright">' + pillEstado(l.status, 'lpill') +
+      '<span class="ldate" style="display:block">' + esc(l.id) +
+        (l.sent ? ' · ' + esc(l.sent) : '') + '</span>' +
+      htmlContador(l) +
+    '</span></button>';
+}
+
+// v4.2: cuerpo de la lista compartido por pintarLista y repintarFilas.
+// v5.1: en la vista All sin búsqueda: New leads → Opened (needs
+// action) → Called (pending update) → Everything else.
+function construirCuerpo(){
+  var visibles = filtrar();
+  if (!visibles.length) {
+    return '<p class="empty">' + (textoBusqueda ? 'No leads match your search.' : 'No leads here yet.') + '</p>';
+  }
+  if (filtroActivo === 'all' && !textoBusqueda) {
+    // v5.4: en All no aparecen los cerrados — viven en los chips
+    // Sold / Closed (la búsqueda por nombre sí los encuentra).
+    visibles = visibles.filter(function(l){ return !SIN_CONTADOR[l.status]; });
+    if (!visibles.length) {
+      return '<p class="empty">No open leads. Use the Sold / Closed filters to see finished leads.</p>';
+    }
+    // v5.3: cada grupo ordenado por su timestamp de acción (tsContador),
+    // lo más reciente arriba — el timer sube de arriba hacia abajo.
+    var porAccion = function(a, b){ return tsContador(b) - tsContador(a); };
+    var nuevos = visibles.filter(function(l){ return l.status === 'New / Transferred'; }).sort(porAccion);
+    var abiertos = visibles.filter(function(l){ return l.status === 'Opened'; }).sort(porAccion);
+    var llamados = visibles.filter(function(l){ return l.status === 'Called'; }).sort(porAccion);
+    if (nuevos.length || abiertos.length || llamados.length) {
+      var resto = visibles.filter(function(l){
+        return l.status !== 'New / Transferred' && l.status !== 'Opened' && l.status !== 'Called'; });
+      return (nuevos.length ? '<p class="groupttl">New / Transferred — Open Now <span class="badge">' + nuevos.length + '</span></p>' +
+                nuevos.map(filaLead).join('') : '') +
+             (abiertos.length ? '<p class="groupttl">Opened — Needs Action <span class="badge">' + abiertos.length + '</span></p>' +
+                abiertos.map(filaLead).join('') : '') +
+             (llamados.length ? '<p class="groupttl">Called — Pending Status <span class="badge">' + llamados.length + '</span></p>' +
+                llamados.map(filaLead).join('') : '') +
+             (resto.length ? '<p class="groupttl">Everything Else</p>' + resto.map(filaLead).join('') : '');
+    }
+  }
+  return visibles.map(filaLead).join('');
+}
+
+function pintarLista(scrollTop){
+  vistaActual = 'lista';
+
+  var chips = FILTROS.map(function(f){
+    var n = f[2] ? LISTA.filter(function(l){ return f[2].indexOf(l.status) !== -1; }).length : LISTA.length;
+    return '<button type="button" class="fl' + (filtroActivo === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' +
+      f[1] + '<span class="n">' + n + '</span></button>';
+  }).join('');
+
+  var cuerpo = construirCuerpo();
+
+  app.innerHTML =
+    '<div class="hero flat">' +
+      '<div class="row"><span class="eyebrow">Lead Panel' + (ADM ? ' · ADMIN' : '') + '</span>' +
+      '<span class="pill" style="background:' + (ADM ? '#b45309' : 'rgba(255,255,255,.14)') + '">' +
+        (ADM ? 'ADMIN · ' : '') + LISTA.length + ' leads</span></div>' +
+      '<h1>Your leads</h1>' +
+      '<p class="biz">' + (ADM
+        ? 'Admin mode: read-only, opening leads affects nothing. <a href="javascript:salirAdmin()" style="color:#8fa3c4">Exit admin</a>'
+        : 'Tap a lead to see contact info and update its status.') + '</p>' +
+    '</div>' +
+    '<div class="wrap" style="padding-bottom:20px">' +
+      '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
+      '<div class="filters">' + chips + '</div>' +
+      '<div id="rows">' + cuerpo + '</div>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.18</p>' +
+    '</div>';
+
+  if (scrollTop) window.scrollTo(0, 0);
+
+  var q = document.getElementById('q');
+  q.oninput = function(){ textoBusqueda = q.value; repintarFilas(); };
+  app.querySelectorAll('.fl').forEach(function(b){
+    b.onclick = function(){ filtroActivo = b.getAttribute('data-f'); pintarLista(false); };
+  });
+  enlazarFilas();
+}
+
+function repintarFilas(){
+  document.getElementById('rows').innerHTML = construirCuerpo();
+  enlazarFilas();
+}
+
+function enlazarFilas(){
+  app.querySelectorAll('.lead').forEach(function(b){
+    b.onclick = function(){ irADetalle(b.getAttribute('data-id'), b.getAttribute('data-t')); };
+  });
+}
+
+// Refresco en vivo: cada 60s (solo con la pestaña visible y en la lista)
+// + refresco inmediato al volver a la pestaña.
+function tickRefresco(){
+  if (vistaActual === 'lista' && (SES || ADM) && document.visibilityState === 'visible') cargarLista(false);
+}
+pollTimer = setInterval(tickRefresco, 60000);
+// v5.2: tick local de los contadores — repinta SOLO las filas si la
+// lista está visible (sin red; el poll de 60s trae los datos).
+setInterval(function(){
+  if (vistaActual === 'lista' && document.visibilityState === 'visible') {
+    var rows = document.getElementById('rows');
+    if (rows) rows.innerHTML = construirCuerpo();
+  }
+}, 60000);
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') tickRefresco();
+});
+
+// ============================================================
+//  VISTA: DETALLE DEL LEAD
+// ============================================================
+// v5.4: prueba de humano. Los escáneres de correo cargan el panel en
+// sandboxes que ejecutan JS pero no gesticulan: la apertura solo se
+// registra tras el primer gesto real con la página visible.
+var humano = false, aperturaEnviada = false, tsCarga = Date.now();
+function enviarApertura(){
+  if (aperturaEnviada || ADM || !ID || !T) return;
+  aperturaEnviada = true;
+  try {
+    fetch(API + '?api=opened&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+      .catch(function(){});
+  } catch(e){}
+}
+function marcarHumano(){
+  if (humano) return;
+  if (document.visibilityState !== 'visible') return;
+  humano = true;
+  if (vistaActual === 'detalle') enviarApertura();
+}
+['pointerdown','touchstart','keydown','wheel','scroll','pointermove']
+  .forEach(function(ev){
+    window.addEventListener(ev, marcarHumano, {passive:true, capture:true});
+  });
+
+// v5: registrar el tap en Call. Fire-and-forget: jamás bloquea ni
+// muestra error (la llamada de Jenny vale más que el conteo). En
+// modo ADMIN no se registra nada.
+// v5.5: humano estricto — un click sintético de sandbox no dispara
+// pointerdown; el tap real de Jenny sí (y llega antes del click).
+function registrarLlamada(){
+  if (ADM) return;
+  if (!humano) return;
+  try {
+    fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+      .catch(function(){});
+  } catch(e){}
+}
+
+// ============================================================
+//  INSURANCE INTEL (v6) — condicional al DOT. Data del motor v24:
+//  api=list trae l.dot + l.ins (chip {n,s,e}); api=lead trae
+//  d.dot + d.insurance (objeto completo); api=insurance reintenta
+//  la carga cuando la celda sigue pendiente (throttle en el motor).
+// ============================================================
+var FORM_HUMANO = {'91':'Liability (BI&PD)','91X':'Liability (BI&PD)','34':'Cargo','84':'Surety Bond','85':'Trust Fund'};
+function tipoHumano(code){
+  var c = String(code || '').toUpperCase();
+  return FORM_HUMANO[c] || (c ? 'Form ' + c : '');
+}
+function metodoHumano(m){
+  var s = String(m || '').toUpperCase();
+  if (s.indexOf('REPL') !== -1) return ['Replaced','rep'];
+  if (s.indexOf('CANC') !== -1 || s === 'CANCEL') return ['Cancelled','can'];
+  return [m || '', 'rep'];
+}
+function fFecha(mdY){ // 'MM/DD/YYYY' -> 'Mar 1, 2019' (o el crudo si no parsea)
+  var m = String(mdY || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return String(mdY || '');
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MES[parseInt(m[1],10)-1] + ' ' + parseInt(m[2],10) + ', ' + m[3];
+}
+function tsDe(mdY){
+  var m = String(mdY || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return m ? new Date(parseInt(m[3],10), parseInt(m[1],10)-1, parseInt(m[2],10)).getTime() : 0;
+}
+// Renovación proyectada: próximo aniversario de la fecha efectiva.
+function renovacion(effTs){
+  if (!effTs) return null;
+  var eff = new Date(effTs), hoy = new Date();
+  var r = new Date(hoy.getFullYear(), eff.getMonth(), eff.getDate());
+  if (r.getTime() <= hoy.getTime()) r = new Date(hoy.getFullYear()+1, eff.getMonth(), eff.getDate());
+  var dias = Math.ceil((r.getTime() - hoy.getTime()) / 864e5);
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return {fecha: MES[r.getMonth()] + ' ' + r.getDate() + ', ' + r.getFullYear(), dias: dias};
+}
+// Estado visual del chip: parte del c.s del motor y aplica la regla
+// cliente de renovación <= 90 días (ambar) sobre los 'ok'.
+function estadoChip(ins){
+  if (!ins) return null;
+  var s = ins.s, ren = null;
+  if (s === 'ok' && ins.e) {
+    ren = renovacion(ins.e);
+    if (ren && ren.dias <= 90) s = 'amber';
+  }
+  return {s: s, n: ins.n || '', ren: ren};
+}
+function claseDot(s){
+  return s === 'red' ? 'id-red' : (s === 'amber' ? 'id-amber' : (s === 'ok' ? 'id-ok' : 'id-gray'));
+}
+// Chip de la LISTA: una sola línea discreta. Sin DOT: cadena vacía
+// (cero cambios de layout).
+function chipSeguroLista(l){
+  if (!l.dot) return '';
+  // v6.1: superficie minima — texto fijo, el color cuenta la historia
+  // y el detalle vive en el sheet. La tarjeta no crece de ancho ni
+  // carga nombres largos de aseguradoras.
+  var e = estadoChip(l.ins);
+  return '<span class="inschip"><span class="idot ' + claseDot(e ? e.s : 'gray') +
+    '"></span><span class="itxt">FMCSA filing</span></span>';
+}
+
+// ── Sheet / modal ──
+var seguroAbierto = null;
+function cerrarSeguro(){
+  if (!seguroAbierto) return;
+  var el = seguroAbierto; seguroAbierto = null;
+  el.ov.classList.remove('on'); el.sh.classList.remove('on');
+  setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
+    if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
+}
+// v6.2: el sheet se arma completo (hero + tabs + cuerpo) segun la
+// data disponible. Con carrier verificado: hero oscuro con nombre
+// legal, badges DOT/MC, stat boxes y tabs Insurance | Carrier. Sin
+// carrier (JSON viejo, red caida o DOT inexistente): encabezado
+// simple v6.1 y solo el cuerpo de Insurance — cero dead-ends.
+function armarSeguroSheet(sh, dot, ins){
+  var carrier = ins && ins.carrier;
+  var conHero = !!(carrier && carrier.exists && carrier.name);
+  var conTabCarrier = !!(carrier && carrier.exists !== false);
+  var H = '';
+  if (conHero) {
+    var prof = carrier.prof || null;
+    var m150 = carrier.m150 || null;
+    var lugar = [carrier.city, carrier.state].filter(Boolean).join(', ');
+    var dotOk = prof && prof.allowed === 'Y';
+    H += '<div class="shero">' +
+      '<button type="button" class="sclose" aria-label="Close">&#10005;</button>' +
+      '<div class="shname">' + esc(carrier.name) + '</div>' +
+      (lugar ? '<div class="shloc">' + esc(lugar) + '</div>' : '') +
+      '<div class="shpills">' +
+        '<span class="pchip ' + (prof ? (dotOk ? 'ok' : 'red') : 'slate') + '">DOT ' + esc(dot) + '</span>' +
+        (m150 && m150.mc ? '<span class="pchip slate">' + esc(m150.mc) + '</span>' : '') +
+        (prof && prof.op ? '<span class="pchip slate">' + esc(prof.op) + '</span>' : '') +
+      '</div>' +
+      (prof ? '<div class="shstats">' +
+        '<div class="shs"><b>' + (prof.pu === null ? '-' : prof.pu) + '</b><span>Power Units</span></div>' +
+        '<div class="shs"><b>' + (prof.drv === null ? '-' : prof.drv) + '</b><span>Drivers</span></div>' +
+      '</div>' : '') +
+    '</div>';
+  } else {
+    H += '<div class="shead"><div><div class="sttl">Insurance</div>' +
+      '<div class="ssub">DOT ' + esc(dot) + '</div></div>' +
+      '<button type="button" class="sclose" aria-label="Close">&#10005;</button></div>';
+  }
+  if (ins && conTabCarrier) {
+    H += '<div class="stabs">' +
+      '<button type="button" class="stab on" data-tab="ins">Insurance</button>' +
+      '<button type="button" class="stab" data-tab="car">Carrier</button>' +
+      '<button type="button" class="stab" data-tab="insp">Inspections</button>' +
+      '<button type="button" class="stab" data-tab="tl">Timeline</button></div>';
+  }
+  H += '<div class="sbody">' + (ins ? cuerpoSeguro(ins) : '<div class="spin" style="margin:40px auto"></div>') + '</div>';
+  sh.innerHTML = H;
+  sh.querySelector('.sclose').addEventListener('click', cerrarSeguro);
+  var tabs = sh.querySelectorAll('.stab');
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].addEventListener('click', function(){
+      var yo = this;
+      for (var k = 0; k < tabs.length; k++) tabs[k].classList.remove('on');
+      yo.classList.add('on');
+      var body = sh.querySelector('.sbody');
+      var cual = yo.getAttribute('data-tab');
+      body.innerHTML = (cual === 'car') ? cuerpoCarrier(ins)
+                     : (cual === 'insp') ? cuerpoInspecciones(ins)
+                     : (cual === 'tl') ? cuerpoTimeline(ins) : cuerpoSeguro(ins); // v6.14
+      body.scrollTop = 0;
+    });
+  }
+}
+function abrirSeguro(dot, ins){
+  cerrarSeguro();
+  var ov = document.createElement('div'); ov.className = 'ov';
+  var sh = document.createElement('div'); sh.className = 'sheet sheet--ins'; // v6.9: tamano fijo
+  armarSeguroSheet(sh, dot, ins);
+  document.body.appendChild(ov); document.body.appendChild(sh);
+  ov.addEventListener('click', cerrarSeguro);
+  seguroAbierto = {ov: ov, sh: sh, dot: dot};
+  requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+  if (!ins) cargarSeguro(sh);
+}
+// Reintento on-demand (chip gris): api=insurance con throttle del motor.
+function cargarSeguro(sh){
+  fetch(API + '?api=insurance&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!seguroAbierto || seguroAbierto.sh !== sh) return;
+      var body = sh.querySelector('.sbody');
+      if (d.ok && d.insurance) {
+        if (LEAD && LEAD.id === ID) LEAD.insurance = d.insurance;
+        armarSeguroSheet(sh, seguroAbierto.dot, d.insurance); // v6.2: hero + tabs
+      } else {
+        body.innerHTML = '<p class="empty">Insurance data is not available yet.<br>' +
+          'It refreshes automatically \u2014 try again in a few minutes.</p>';
+      }
+    })
+    .catch(function(){
+      if (!seguroAbierto || seguroAbierto.sh !== sh) return;
+      sh.querySelector('.sbody').innerHTML = '<p class="empty">Connection error. Try again.</p>';
+    });
+}
+// Historial: dedup exacto + sin duración cuando el feed federal trae
+// fechas incoherentes (cancelled < effective — ocurre en carriers
+// grandes con cadenas de reemplazo).
+function historialLimpio(hist){
+  var visto = {}, out = [];
+  (hist || []).forEach(function(h){
+    var k = [h.insurer, h.type, h.effective, h.cancelled, h.method].join('|');
+    if (visto[k]) return; visto[k] = 1; out.push(h);
+  });
+  return out;
+}
+function cuerpoSeguro(ins){
+  var H = '';
+  var act = ins.active;
+  var e = estadoChip(ins.c ? ins.c : null);
+
+  // 0) v6.18 (Fase 4D): talking points pre-llamada (bloque tp del
+  // motor v24.11, ya validado y recortado en servidor). tp ausente
+  // => nada: la sintesis no es data (el detalle completo sigue en
+  // las tabs), asi que su ausencia no se anuncia — a diferencia de
+  // basics/rel. Escapado igual por higiene (XSS).
+  if (ins.tp && ins.tp.txt) {
+    var tpb = String(ins.tp.txt).split('\n')
+      .map(function (x) { return x.trim(); })
+      .filter(Boolean).slice(0, 5);
+    if (tpb.length) {
+      H += '<div class="icard">' + labelIco('gauge', 'Before you call') +
+        '<ul class="tpul">' + tpb.map(function (b) {
+          return '<li>' + esc(b) + '</li>';
+        }).join('') + '</ul>' +
+        '<p class="ocap" style="margin:8px 0 0">AI summary of this carrier\u2019s ' +
+        'federal records \u2014 verify each point in the tabs below before quoting.</p></div>';
+    }
+  }
+
+  // 1) Estado actual
+  if (act) {
+    var ren = renovacion(tsDe(act.effective));
+    H += '<div class="icard"><p class="label">Current coverage</p>';
+    if (act.pending_cancel) {
+      H += '<div class="iband red">Pending cancellation \u2014 effective ' + esc(fFecha(act.cancel_effective)) +
+        '. Coverage lapses on that date unless replaced.</div>';
+    } else if (ren && ren.dias <= 90) {
+      H += '<div class="iband amber">Projected renewal in ' + ren.dias + ' days.</div>';
+    }
+    H += '<p class="iins">' + esc(act.insurer || '-') + '</p>' +
+      '<p class="itype">' + esc(tipoHumano(act.form)) + (act.policy_no ? ' \u00b7 Policy ' + esc(act.policy_no) : '') + '</p>' +
+      '<div class="drow"><span>Effective since</span><b>' + esc(fFecha(act.effective)) + '</b></div>' +
+      (ren ? '<div class="drow"><span>Projected renewal</span><b>' + esc(ren.fecha) + ' (' + ren.dias + 'd)</b></div>' : '') +
+      '</div>';
+    var extras = (ins.active_all || []).slice(1);
+    if (extras.length) {
+      H += '<div class="icard"><p class="label">Other active filings</p>' +
+        extras.map(function(a){
+          return '<div class="drow"><span>' + esc(tipoHumano(a.form)) + '</span><b>' + esc(a.insurer) + '</b></div>';
+        }).join('') + '</div>';
+    }
+  } else if (ins.carrier && ins.carrier.exists === false) {
+    // v6.1: el DOT no existe en FMCSA — casi siempre un numero mal
+    // dictado. Mensaje accionable, no una falsa "sin seguro".
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband red">DOT not found in FMCSA records.</div>' +
+      '<p class="itype" style="margin:0">The number may have been taken down wrong \u2014 ' +
+      'confirm it with the client and update the lead notes.</p></div>';
+  } else if (ins.no_filing) {
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband amber">No FMCSA filing on record for this DOT.</div>' +
+      '<p class="itype" style="margin:0">' +
+      (ins.carrier && ins.carrier.exists && ins.carrier.name
+        ? 'FMCSA lists this DOT as ' + esc(ins.carrier.name) +
+          (ins.carrier.city ? ' (' + esc(ins.carrier.city) + (ins.carrier.state ? ', ' + esc(ins.carrier.state) : '') + ')' : '') +
+          ' with no federal insurance filings. '
+        : '') +
+      'Intrastate carriers and new authorities may not have federal ' +
+      'insurance filings \u2014 this is a federal-record status, not proof the business is uninsured.</p></div>';
+  } else {
+    H += '<div class="icard"><p class="label">Current coverage</p>' +
+      '<div class="iband amber">No active insurance on file. All previous policies were cancelled or replaced.</div></div>';
+  }
+
+  // 2) Métricas derivadas
+  var hist = historialLimpio(ins.history);
+  var aseguradoras = {};
+  hist.forEach(function(h){ if (h.insurer) aseguradoras[h.insurer] = 1; });
+  if (act && act.insurer) aseguradoras[act.insurer] = 1;
+  var nIns = Object.keys(aseguradoras).length;
+  var tenencia = '-';
+  if (act) {
+    var ts = tsDe(act.effective);
+    if (ts) {
+      var meses = Math.max(0, Math.floor((Date.now() - ts) / (30.44 * 864e5)));
+      tenencia = meses >= 12 ? (Math.floor(meses / 12) + 'y ' + (meses % 12) + 'm') : (meses + 'm');
+    }
+  }
+  H += '<div class="imetrics">' +
+    '<div class="im"><b>' + esc(tenencia) + '</b><span>With insurer</span></div>' +
+    '<div class="im"><b>' + nIns + '</b><span>Insurers on record</span></div>' +
+    '<div class="im"><b>' + hist.length + '</b><span>Past filings</span></div>' +
+    '</div>';
+
+  // 3) Historial
+  if (hist.length) {
+    H += '<div class="icard"><p class="label">Policy history</p>' +
+      hist.map(function(h){
+        var mm = metodoHumano(h.method);
+        var e1 = tsDe(h.effective), e2 = tsDe(h.cancelled);
+        var periodo = fFecha(h.effective) + ' \u2013 ' + fFecha(h.cancelled);
+        var dur = '';
+        if (e1 && e2 && e2 >= e1) {
+          var dd = Math.round((e2 - e1) / 864e5);
+          dur = dd >= 365 ? ' \u00b7 ' + (dd / 365).toFixed(1).replace('.0','') + 'y'
+              : dd >= 30 ? ' \u00b7 ' + Math.round(dd / 30) + 'mo' : ' \u00b7 ' + dd + 'd';
+        }
+        return '<div class="ih"><div class="ihi">' + esc(h.insurer || '-') +
+          '<span class="iht ' + mm[1] + '">' + esc(mm[0]) + '</span></div>' +
+          '<div class="ihd">' + esc(tipoHumano(h.type)) + ' \u00b7 ' + esc(periodo) + esc(dur) + '</div></div>';
+      }).join('') + '</div>';
+  }
+
+  // 4) Pie
+  H += '<p class="ifoot">FMCSA L&amp;I data \u00b7 Updated ' + esc(ins.updated_at || '') +
+    (hist.length >= 20 ? ' \u00b7 Last 20 filings shown' : '') + '<br>' +
+    '<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=' +
+    encodeURIComponent(ins.dot || '') + '" target="_blank" rel="noopener">View SAFER snapshot</a></p>';
+  return H;
+}
+// ── v6.2: TAB CARRIER (perfil QCMobile + Census) ──
+function fmtPct(n){
+  if (n === null || n === undefined) return '-';
+  return (Math.round(n * 10) / 10) + '%';
+}
+function fmtMillas(s){
+  var n = Number(s);
+  return isNaN(n) ? String(s || '-') : n.toLocaleString('en-US');
+}
+function fechaIso(iso){ // 'YYYY-MM-DD' -> 'May 20, 2026'
+  var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(iso || '-');
+  var MES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MES[parseInt(m[2],10)-1] + ' ' + parseInt(m[3],10) + ', ' + m[1];
+}
+function authHumano(v){
+  if (v === 'A') return ['Active', 'ok'];
+  if (v === 'I') return ['Inactive', ''];
+  if (v === 'N') return ['None', ''];
+  return ['-', ''];
+}
+// Barra OOS contra el promedio nacional. Verde bajo el promedio,
+// rojo encima; marcador gris = promedio nacional. Sin inspecciones:
+// badge N/A y texto honesto (no se inventa un 0% "bueno").
+function barraOos(titulo, o){
+  if (!o) return '';
+  if (!o.i) {
+    return '<div class="oosb"><div class="ot"><span>' + esc(titulo) +
+      '</span><span class="obadge na">N/A</span></div>' +
+      '<p class="ocap" style="margin:6px 0 0">No inspections in the last 24 months.</p></div>';
+  }
+  var r = o.r === null ? 0 : o.r;
+  var encima = (o.na !== null && o.r !== null && o.r > o.na);
+  var cl = encima ? 'bad' : 'ok';
+  var marca = (o.na !== null) ? '<span class="omark" style="left:' + Math.min(o.na, 100) + '%"></span>' : '';
+  return '<div class="oosb">' +
+    '<div class="ot"><span>' + esc(titulo) + '</span>' +
+      '<span class="obadge ' + cl + '">' + esc(fmtPct(o.r)) + '</span></div>' +
+    '<div class="otrack"><span class="ofill ' + cl + '" style="width:' + Math.min(r, 100) + '%"></span>' + marca + '</div>' +
+    '<p class="ocap" style="margin:0">' + o.o + ' of ' + o.i + ' inspections OOS' +
+      (o.na !== null ? ' \u00b7 National Avg: ' + esc(fmtPct(o.na)) : '') +
+      (o.na !== null && o.r !== null
+        ? ' \u00b7 <span class="' + (encima ? 'above' : 'below') + '">' + (encima ? 'above average' : 'below average') + '</span>'
+        : '') + '</p></div>';
+}
+// v6.10: iconos SVG inline (stroke, heredan color). NO emojis.
+var ICONOS = {
+  truck: '<path d="M1 4h9v7H1zM10 6h3l2 2.5V11h-5zM4 12.6a1.4 1.4 0 1 0 0-.01M12 12.6a1.4 1.4 0 1 0 0-.01"/>',
+  trailer: '<path d="M1 4h11v6H1zM12 10h3M4 12.3a1.3 1.3 0 1 0 0-.01M8 12.3a1.3 1.3 0 1 0 0-.01"/>',
+  doc: '<path d="M4 1h6l3 3v11H4zM10 1v3h3M6 7h5M6 10h5"/>',
+  shield: '<path d="M8 1l6 2v5c0 4-2.7 6.2-6 7-3.3-.8-6-3-6-7V3z"/>',
+  wrench: '<path d="M9.5 3.5a3.4 3.4 0 0 0-4.6 4L2 10.4 4.6 13l2.9-2.9a3.4 3.4 0 0 0 4-4.6L9.4 7.6 7.4 5.6z"/>',
+  phone: '<path d="M3 2h3l1.5 3.5L6 7a9 9 0 0 0 4 4l1.5-1.5L15 11v3c0 .6-.5 1-1 1A12 12 0 0 1 2 3c0-.5.4-1 1-1z"/>',
+  pin: '<path d="M8 15s-5-5.2-5-8.5a5 5 0 0 1 10 0C13 9.8 8 15 8 15zM8 8.2a1.7 1.7 0 1 0 0-.01"/>',
+  cal: '<path d="M2 3h12v11H2zM2 6.5h12M5 1v3M11 1v3"/>',
+  box: '<path d="M2 5l6-3 6 3v7l-6 3-6-3zM2 5l6 3 6-3M8 8v7"/>',
+  gauge: '<path d="M2 13a7 7 0 1 1 12 0M8 10l3-4M8 10.5a1 1 0 1 0 0-.01"/>'
+};
+function ico(n){
+  return '<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONOS[n] || '') + '</svg>';
+}
+function labelIco(n, txt){ return '<p class="label">' + ico(n) + txt + '</p>'; }
+// v6.10: violaciones registradas de UN vehiculo (cruce local, cero red):
+// por inspeccion, ubica la unidad con ese VIN y filtra sus violaciones.
+function violacionesDeVin(ins, vin){
+  var out = [];
+  if (!ins || !ins.insp || !ins.insp.list) return out;
+  ins.insp.list.forEach(function(x){
+    var unidad = null;
+    (x.u || []).forEach(function(u){ if (u.vin === vin) unidad = u; });
+    if (!unidad) return;
+    (x.v || []).forEach(function(v){
+      if (String(v.u) === String(unidad.n)) out.push({d: x.d, c: v.c, txt: v.d, o: v.o});
+    });
+  });
+  return out;
+}
+// v6.10: acordeon del detalle por vehiculo (el HTML del tab se
+// reconstruye en cada cambio, asi que el handler es global por indice)
+function toggleFlota(i){
+  var det = document.getElementById('fdet-' + i);
+  var fila = document.getElementById('fitem-' + i);
+  if (!det || !fila) return;
+  det.classList.toggle('on');
+  fila.classList.toggle('open');
+}
+// v6.9: etiquetas estandar del formulario MCS-150 para flags crgo_*
+// (lo no reconocido se muestra con el sufijo crudo: nada se pierde)
+var CARGO_LBL = {genfreight:'General Freight', household:'Household Goods',
+  metalsheet:'Metal: Sheets, Coils, Rolls', motorveh:'Motor Vehicles',
+  drivetow:'Drive Away / Tow Away', logpole:'Logs, Poles, Beams, Lumber',
+  bldgmat:'Building Materials', mobilehome:'Mobile Homes',
+  machlrg:'Machinery, Large Objects', produce:'Fresh Produce',
+  liqgas:'Liquids / Gases', intermodal:'Intermodal Containers',
+  passengers:'Passengers', oilfield:'Oilfield Equipment', livestock:'Livestock',
+  grainfeed:'Grain, Feed, Hay', coalcoke:'Coal / Coke', meat:'Meat',
+  garbage:'Garbage / Refuse', usmail:'US Mail', chem:'Chemicals',
+  drybulk:'Commodities Dry Bulk', coldfood:'Refrigerated Food',
+  beverages:'Beverages', paperprod:'Paper Products', utility:'Utilities',
+  farmsupp:'Agricultural / Farm Supplies', construct:'Construction',
+  waterwell:'Water Well', cargoothr:'Other'};
+function etiquetaCargo(c){ return CARGO_LBL[String(c)] || String(c).toUpperCase(); }
+// v6.12: vPIC llama "INCOMPLETE VEHICLE" al chasis-cabina (M2, etc.);
+// para Jenny suena a dato roto. Solo se traduce ESA cadena exacta.
+function tipoVehiculo(t){
+  return String(t || '').toUpperCase() === 'INCOMPLETE VEHICLE' ? 'TRUCK (CHASSIS)' : (t || '');
+}
+// v6.9: '3232891777' -> '(323) 289-1777'; otros formatos se muestran tal cual
+function fmtTel(t){
+  var d = String(t || '').replace(/\D/g, '');
+  if (d.length === 10) return '(' + d.slice(0,3) + ') ' + d.slice(3,6) + '-' + d.slice(6);
+  return String(t || '');
+}
+// v6.9: "CLE ELUM WA" + st "WA" => sin duplicar el estado
+function lugarInsp(loc, st){
+  loc = String(loc || ''); st = String(st || '');
+  if (!loc) return esc(st);
+  if (!st || loc.toUpperCase().indexOf(st.toUpperCase()) > -1) return esc(loc);
+  return esc(loc + ', ' + st);
+}
+// v6.9: indice vin -> item de flota (para ano/tipo en la tabla de equipo)
+function mapaFlota(ins){
+  var m = {};
+  if (ins && ins.fleet && ins.fleet.list) ins.fleet.list.forEach(function(f){ m[f.vin] = f; });
+  return m;
+}
+// v6.9: "2015 GREAT DANE TRAILERS Great Dane Trailers" => sin modelo redundante
+function lineaVehiculo(f){
+  var mk = String(f.mk || ''), md = String(f.md || '');
+  if (md && mk.toUpperCase().indexOf(md.toUpperCase()) > -1) md = '';
+  return [f.y, mk, md].filter(Boolean).join(' ');
+}
+// v6.8 (Fase 3): niveles CVSA estandar (universales, no mapeo propio)
+var NIVELES_INSP = {1:'Full', 2:'Walk-Around', 3:'Driver-Only', 4:'Special',
+                    5:'Vehicle-Only', 6:'Radioactive'};
+function nivelInsp(l){
+  return l ? ('Level ' + l + (NIVELES_INSP[l] ? ' \u00b7 ' + NIVELES_INSP[l] : '')) : '';
+}
+// v6.8: nombre de la unidad de una violacion ("Driver" / "Unit 1 \u00b7 PETERBILT")
+function unidadViol(u, unidades){
+  if (String(u).toUpperCase() === 'D') return 'Driver';
+  if (!u) return '';
+  var mk = '';
+  (unidades || []).forEach(function(x){ if (String(x.n) === String(u)) mk = x.mk || ''; });
+  return 'Vehicle \u00b7 Unit ' + esc(String(u)) + (mk ? ' (' + esc(mk) + ')' : '');
+}
+// v6.8 (Fase 3): tab Inspections — historial de 36 meses con
+// violaciones textuales oficiales. Tolerancia total: JSON pre-Fase 3
+// (sin .insp) => "not loaded yet" (el refresco semanal lo trae);
+// insp.deg => aviso honesto de detalle incompleto; n:0 => "sin
+// inspecciones" (que NO es lo mismo que red caida).
+function cuerpoInspecciones(ins){
+  var ip = ins && ins.insp;
+  if (!ip) {
+    return '<p class="empty">Inspection history not loaded yet.<br>' +
+      'It refreshes automatically \u2014 reopen in a few minutes.</p>';
+  }
+  var H = '';
+  if (!ip.n) {
+    H += '<p class="empty">No roadside inspections on record in the last ' +
+      (ip.win_m || 36) + ' months.</p>' +
+      '<p class="ocap" style="margin:0;text-align:center">Common for new or small carriers \u2014 fewer miles, fewer stops.</p>';
+    return H;
+  }
+  // v6.9: resumen arriba (estilo dotsearch) con la data visible
+  var totV = 0, totO = 0;
+  ip.list.forEach(function(x){ totV += (x.t || 0); totO += (x.o || 0); });
+  H += '<div class="icard">' + labelIco('doc', 'Summary \u00b7 last ' + (ip.win_m || 36) + ' months') +
+    '<div class="cstats" style="grid-template-columns:repeat(3,1fr)">' +
+      '<div class="cs"><b>' + ip.n + '</b><span>Inspections</span></div>' +
+      '<div class="cs"><b>' + totV + '</b><span>Violations</span></div>' +
+      '<div class="cs"><b>' + totO + '</b><span>OOS</span></div>' +
+    '</div>' +
+    (ip.list.length < ip.n ? '<p class="ocap" style="margin:8px 0 0">Showing latest ' +
+      ip.list.length + ' of ' + ip.n + '.</p>' : '') +
+    (function(){ // v6.10: breakdown por nivel + estados (computado local)
+      var porNivel = {}, estados = {};
+      ip.list.forEach(function(x){
+        if (x.lvl) porNivel[x.lvl] = (porNivel[x.lvl] || 0) + 1;
+        if (x.st) estados[x.st] = 1;
+      });
+      var nivs = Object.keys(porNivel).sort().map(function(l){
+        return nivelInsp(Number(l)) + ' \u00d7 ' + porNivel[l];
+      });
+      var sts = Object.keys(estados).sort();
+      var s = '';
+      if (nivs.length) s += '<div class="drow"><span>By level</span><b style="text-align:right">' + esc(nivs.join(' \u00b7 ')) + '</b></div>';
+      if (sts.length) s += '<div class="drow" style="border-bottom:0"><span>Inspected in</span><b>' + esc(sts.join(', ')) + '</b></div>';
+      return s;
+    })() + '</div>';
+  // v6.14 (Fase 4A): desglose por BASIC del snapshot SMS mensual
+  // (bloque basics del motor v24.9). Ventana ~24m: NO es la de los
+  // 36m de arriba, y la leyenda lo declara con el rango real del
+  // carrier + el asof del snapshot. Sin chips de filtro (join
+  // unique_id != inspection_id muerto, sonda 14-ago). Sin basics en
+  // el JSON (pre-v24.9 o red caida) => "not loaded yet", regla 6.
+  var bb = ins.basics;
+  if (bb) {
+    H += '<div class="icard">' + labelIco('shield', 'Violation breakdown \u00b7 BASIC categories');
+    if (bb.cats && bb.cats.length) {
+      H += '<table class="btbl"><tr><th>Category</th><th>Viol.</th><th>Severity</th><th>OOS</th></tr>';
+      bb.cats.forEach(function(c){
+        H += '<tr><td>' + esc(c.n) + '</td><td>' + (c.tot || 0) + '</td><td>' + (c.sev || 0) +
+          '</td><td' + (c.oos > 0 ? ' class="boos"' : '') + '>' + (c.oos || 0) + '</td></tr>';
+      });
+      H += '</table>';
+    } else {
+      H += '<p class="ocap" style="margin:2px 0 0">No violations in the current SMS snapshot.</p>';
+    }
+    H += '<p class="ocap" style="margin:8px 0 0">FMCSA SMS snapshot' +
+      (bb.asof ? ' as of ' + esc(fechaIso(bb.asof)) : '') +
+      (bb.from && bb.to ? ' \u00b7 covers ' + esc(fechaIso(bb.from)) + ' \u2013 ' + esc(fechaIso(bb.to)) : '') +
+      ' \u2014 a \u224824-month window, not the ' + (ip.win_m || 36) + '-month list below. ' +
+      'Severity per FMCSA SMS weights; percentile scores are not public.</p></div>';
+  } else {
+    H += '<p class="ocap" style="margin:0 0 10px;text-align:center">BASIC violation breakdown not loaded yet \u2014 it refreshes automatically.</p>';
+  }
+  var flota = mapaFlota(ins);
+  if (ip.deg) {
+    H += '<div class="iband amber">Some inspection details could not be loaded \u2014 they refresh automatically.</div>';
+  }
+  ip.list.forEach(function(x){
+    var limpio = (x.t === 0);
+    H += '<div class="icard">' +
+      '<div class="inh">' +
+        '<div><b>' + esc(fechaIso(x.d) || x.d || '-') + '</b>' +
+          '<span class="inloc">' + ico('pin') + lugarInsp(x.loc, x.st) + '</span></div>' +
+        '<div class="inbdg">' +
+          (limpio ? '<span class="obadge ok">Clean</span>'
+                  : '<span class="obadge ' + (x.o > 0 ? 'bad' : 'amb') + '">' +
+                      x.t + ' violation' + (x.t === 1 ? '' : 's') + '</span>') +
+          (x.o > 0 ? '<span class="obadge bad">OOS</span>' : '') +
+        '</div></div>' +
+      '<p class="ocap" style="margin:2px 0 0">' +
+        [nivelInsp(x.lvl), (x.rep ? 'Report ' + esc(x.rep) : ''),
+         (x.t > 0 ? [(x.dv ? x.dv + ' Driver' : ''), (x.vv ? x.vv + ' Vehicle' : ''),
+                     (x.hv ? x.hv + ' Hazmat' : '')].filter(Boolean).join(' / ') : '')
+        ].filter(Boolean).join(' \u00b7 ') + '</p>';
+    // v6.9: equipo inspeccionado (ano/tipo via flota decodificada, VIN clicable, placa)
+    if (x.u && x.u.length) {
+      H += '<div class="vlist">';
+      x.u.forEach(function(u){
+        var f = (u.vin && flota[u.vin]) || {};
+        var linea = lineaVehiculo({y: f.y, mk: f.mk || u.mk, md: f.md}); // v6.12: vPIC primero
+        var esTrailer2 = /trailer/i.test(f.t || '');
+        H += '<div class="eqrow"><div><b>' + ico(esTrailer2 ? 'trailer' : 'truck') + esc(linea || u.mk || '-') + '</b>' +
+          '<span class="eqmeta">' + [
+            (f.t ? esc(tipoVehiculo(f.t)) : ''),
+            (u.lic ? esc((u.lst ? u.lst + ' ' : '') + u.lic) : '')
+          ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
+          (u.vin ? '<span class="fvin" style="color:#667085">' + esc(u.vin) + '</span>' : '') + '</div>';
+      });
+      H += '</div>';
+    }
+    if (x.v && x.v.length) {
+      H += '<div class="vlist">';
+      x.v.forEach(function(v){
+        H += '<div class="vitem' + (v.o ? ' voos' : '') + '">' +
+          '<div class="inh"><div class="vd">' + esc(v.d || v.c || '') + '</div>' +
+            '<span class="vchip ' + (v.o ? 'oos' : 'warn') + '">' + (v.o ? 'OOS' : 'Warning') + '</span></div>' +
+          '<div class="vm">' + esc(v.c || '') +
+            (unidadViol(v.u, x.u) ? ' \u00b7 ' + unidadViol(v.u, x.u) : '') + '</div>' +
+        '</div>';
+      });
+      H += '</div>';
+    } else if (!limpio && ip.deg) {
+      H += '<p class="ocap" style="margin:6px 0 0">Violation details pending.</p>';
+    }
+    H += '</div>';
+  });
+  H += '<p class="ifoot">FMCSA roadside inspection data (updated daily) \u00b7 Updated ' +
+    esc(ins.updated_at || '') + '</p>';
+  return H;
+}
+// v6.14 (Fase 4C): Company Timeline — cronologia del carrier con
+// data que YA vive en el INSURANCE_JSON. Cero red, cero motor.
+// Gaps de cobertura por FUSION DE INTERVALOS (historial L&I +
+// polizas activas): un reemplazo con solape o continuidad al dia
+// siguiente NO es gap. Gaps cerrados se muestran desde 7 dias (los
+// tramites de 1-2 dias son ruido y la leyenda lo declara); el gap
+// ABIERTO hasta hoy se muestra siempre — es el argumento de venta
+// numero uno. El nodo "Today" no pinta rojo a un intrastate sin
+// filing (no_filing != sin seguro real).
+function cuerpoTimeline(ins){
+  if (!ins) return '<p class="empty">Timeline not loaded yet.</p>';
+  var DIA = 864e5, hoy = Date.now();
+  var MESN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fTs(ts){ var d = new Date(ts); return MESN[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }
+  function tsIso(iso){
+    var x = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return x ? new Date(+x[1], +x[2]-1, +x[3]).getTime() : 0;
+  }
+  function durTxt(dd){
+    return dd >= 365 ? ((dd/365).toFixed(1).replace('.0','') + 'y')
+         : dd >= 30 ? (Math.round(dd/30) + 'mo') : (dd + 'd');
+  }
+  var m = (ins.carrier && ins.carrier.m150) || null;
+  var ev = [];
+  // 1) Registro federal (Census)
+  if (m && m.add && tsIso(m.add)) ev.push({ts: tsIso(m.add), cls: '',
+    t: 'DOT registered with FMCSA', m: fechaIso(m.add)});
+  if (m && m.date && tsIso(m.date)) ev.push({ts: tsIso(m.date), cls: '',
+    t: 'Latest MCS-150 filing', m: fechaIso(m.date) +
+      (m.mi ? ' \u00b7 ' + esc(fmtMillas(m.mi)) + ' mi reported' + (m.yr ? ' (' + esc(String(m.yr)) + ')' : '') : '')});
+  // 2) Polizas: historial (cerradas) + activas (abiertas hasta hoy)
+  var hist = historialLimpio(ins.history);
+  var iv = [];
+  hist.forEach(function(h){
+    var a = tsDe(h.effective); if (!a) return;
+    var b = tsDe(h.cancelled) || a;
+    if (b < a) b = a;
+    iv.push([a, b]);
+    var mm = metodoHumano(h.method);
+    ev.push({ts: a, cls: '',
+      t: esc(h.insurer || '-') + (mm[0] ? ' <span class="iht ' + mm[1] + '">' + esc(mm[0]) + '</span>' : ''),
+      m: [esc(tipoHumano(h.type)), esc(fFecha(h.effective)) + ' \u2013 ' + esc(fFecha(h.cancelled)) +
+          (b > a ? ' \u00b7 ' + durTxt(Math.round((b - a) / DIA)) : '')].filter(Boolean).join(' \u00b7 ')});
+  });
+  var activas = ins.active_all || [];
+  activas.forEach(function(a){
+    var t1 = tsDe(a.effective); if (!t1) return;
+    iv.push([t1, hoy]);
+    ev.push({ts: t1, cls: 'ok',
+      t: esc(a.insurer || '-') + ' <span class="iht rep" style="background:#e6f4ee;color:#12805c">Active</span>',
+      m: [esc(tipoHumano(a.form)), 'since ' + esc(fFecha(a.effective)) +
+          ' \u00b7 ' + durTxt(Math.max(0, Math.round((hoy - t1) / DIA)))].filter(Boolean).join(' \u00b7 ') +
+         (a.pending_cancel && a.cancel_effective ? ' \u00b7 pending cancellation ' + esc(fFecha(a.cancel_effective)) : '')});
+  });
+  if (!ev.length) {
+    return '<p class="empty">Not enough dated FMCSA records to build a timeline.</p>';
+  }
+  // 3) Fusion de intervalos y gaps
+  iv.sort(function(x, y){ return x[0] - y[0]; });
+  var fus = [];
+  iv.forEach(function(x){
+    if (fus.length && x[0] <= fus[fus.length-1][1] + DIA) {
+      if (x[1] > fus[fus.length-1][1]) fus[fus.length-1][1] = x[1];
+    } else fus.push([x[0], x[1]]);
+  });
+  for (var g = 1; g < fus.length; g++) {
+    var dd = Math.round((fus[g][0] - fus[g-1][1]) / DIA);
+    if (dd >= 7) ev.push({ts: fus[g-1][1] + 1, cls: 'gap',
+      t: 'No coverage on file \u00b7 ' + dd + ' days',
+      m: fTs(fus[g-1][1]) + ' \u2013 ' + fTs(fus[g][0])});
+  }
+  if (fus.length && !activas.length) { // gap abierto hasta hoy: SIEMPRE
+    var fin = fus[fus.length-1][1];
+    var dd2 = Math.round((hoy - fin) / DIA);
+    if (dd2 >= 1) ev.push({ts: fin + 1, cls: 'gap',
+      t: 'No coverage on file \u00b7 ' + dd2 + ' days and counting',
+      m: 'Since ' + fTs(fin)});
+  }
+  // 4) Hoy: estado + autoridad (sin rojo para no_filing: intrastate)
+  var p = ins.carrier && ins.carrier.prof;
+  var aut = '';
+  if (p && p.auth) {
+    var aC = authHumano(p.auth.com), aN = authHumano(p.auth.con), aB = authHumano(p.auth.brk);
+    var partes = [];
+    if (aC[0] !== '-') partes.push('Common ' + aC[0]);
+    if (aN[0] !== '-') partes.push('Contract ' + aN[0]);
+    if (aB[0] !== '-') partes.push('Broker ' + aB[0]);
+    aut = partes.length ? 'Authority: ' + partes.join(' \u00b7 ')
+                        : 'No for-hire operating authority on record';
+  }
+  ev.push({ts: hoy + 1, cls: (ins.active ? 'ok' : ''), t: 'Today',
+    m: (ins.active ? 'Covered by ' + esc(ins.active.insurer || '-')
+        : (ins.no_filing ? 'No FMCSA insurance filing on record'
+                         : 'No active insurance on file')) +
+       (aut ? ' \u00b7 ' + esc(aut) : '')});
+  ev.sort(function(a, b){ return b.ts - a.ts; }); // v6.15: Today arriba
+  var H = '<div class="icard">' + labelIco('cal', 'Company timeline') + '<div class="tl">';
+  ev.forEach(function(e){
+    H += '<div class="tle' + (e.cls ? ' ' + e.cls : '') + '"><p class="tlt">' + e.t + '</p>' +
+         (e.m ? '<p class="tlm">' + e.m + '</p>' : '') + '</div>';
+  });
+  H += '</div>' +
+    '<p class="ocap" style="margin:10px 0 0">Built from federal FMCSA filings (L&amp;I insurance, MCS-150 registration). ' +
+    'Coverage gaps reflect filing records \u2014 gaps shorter than 7 days are not shown. ' +
+    'Confirm with the client before quoting.</p></div>';
+  H += '<p class="ifoot">FMCSA L&amp;I + registration data \u00b7 Updated ' + esc(ins.updated_at || '') + '</p>';
+  return H;
+}
+function cuerpoCarrier(ins){
+  var carrier = ins && ins.carrier;
+  // Sin bloque carrier (JSON pre-v24.3 o QCMobile caido al enriquecer)
+  if (!carrier) {
+    return '<p class="empty">Carrier profile could not be verified with FMCSA.<br>' +
+      'It refreshes automatically \u2014 try again later.</p>';
+  }
+  // Con carrier pero sin perfil (JSON pre-v24.4 o cache en transicion)
+  if (!carrier.prof) {
+    return '<p class="empty">Carrier profile not loaded yet.<br>' +
+      'It refreshes automatically \u2014 reopen in a few minutes.</p>';
+  }
+  var p = carrier.prof, m = carrier.m150 || null, H = '';
+
+  // 1) Fuera de servicio federal: banda roja arriba de todo
+  if (p.allowed === 'N' || p.oos_date) {
+    H += '<div class="iband red">FMCSA lists this carrier as not authorized to operate' +
+      (p.oos_date ? ' \u2014 out-of-service order effective ' + esc(p.oos_date) : '') + '.</div>';
+  }
+
+  // 2) Operation & Authority
+  var aCom = authHumano(p.auth && p.auth.com), aCon = authHumano(p.auth && p.auth.con), aBrk = authHumano(p.auth && p.auth.brk);
+  H += '<div class="icard">' + labelIco('doc', 'Operation') +
+    '<div class="drow"><span>Operation type</span><b>' + esc(p.op || '-') + '</b></div>' +
+    '<div class="drow"><span>Allowed to operate</span><b>' + (p.allowed === 'Y' ? 'Yes' : p.allowed === 'N' ? 'No' : '-') + '</b></div>' +
+    (m && m.cls ? '<div class="drow"><span>Classification</span><b style="text-align:right">' +
+      esc(String(m.cls).split(';').map(function(s){ return s.trim().toLowerCase().replace(/\b[a-z]/g,
+        function(c){ return c.toUpperCase(); }); }).filter(Boolean).join(', ')) + '</b></div>' : '') +
+    (m && m.cargo && m.cargo.length ? '<div class="drow"><span>Cargo carried</span><b style="text-align:right">' +
+      esc(m.cargo.map(etiquetaCargo).join(', ')) + '</b></div>' : '') +
+    (m && m.hm ? '<div class="drow"><span>HazMat</span><b>' + (m.hm === 'Y' ? 'Authorized' : 'Not Authorized') + '</b></div>' : '') +
+    '<div class="drow" style="border-bottom:0"><span>Authority</span></div>' +
+    // v6.3: sin autoridad for-hire registrada (tipico intrastate):
+    // una linea honesta en vez de tres chips vacios.
+    ((aCom[0] === '-' && aCon[0] === '-' && aBrk[0] === '-')
+      ? '<p class="ocap" style="margin:2px 0 0">No for-hire operating authority on record \u2014 common for intrastate carriers.</p>'
+      : '<div class="achips">' +
+          '<span class="achip ' + aCom[1] + '">Common: ' + aCom[0] + '</span>' +
+          '<span class="achip ' + aCon[1] + '">Contract: ' + aCon[0] + '</span>' +
+          '<span class="achip ' + aBrk[1] + '">Broker: ' + aBrk[0] + '</span>' +
+        '</div>') + '</div>';
+
+  // 2b) v6.9: contactos federales del carrier (Census MCS-150).
+  // Solo pinta si el motor trajo algo — mapeo tolerante en v24.7.
+  if (m && (m.off1 || m.off2 || m.tel || m.em || m.addr || m.add)) {
+    H += '<div class="icard">' + labelIco('phone', 'Company contacts \u00b7 FMCSA registration') +
+      (m.off1 ? '<div class="drow"><span>Officer</span><b>' + esc(m.off1) + '</b></div>' : '') +
+      (m.off2 && m.off2 !== m.off1 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
+      (m.tel ? '<div class="drow"><span>Phone</span><b><a href="tel:' + esc(String(m.tel).replace(/\D/g,'')) + '" style="color:inherit">' + esc(fmtTel(m.tel)) + '</a></b></div>' : '') +
+      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all"><a href="mailto:' + esc(m.em) + '" style="color:inherit">' + esc(m.em) + '</a></b></div>' : '') +
+      (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right"><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.addr) + '" style="color:inherit">' + esc(m.addr) + '</a></b></div>' : '') +
+      (m.add ? '<div class="drow" style="border-bottom:0"><span>DOT active since</span><b>' + esc(fechaIso(m.add)) + '</b></div>' : '') +
+      '<p class="ocap" style="margin:6px 0 0">From the carrier\u2019s federal MCS-150 filing \u2014 compare with what the lead provided.</p></div>';
+  }
+
+  // 2b2) v6.16 (Fase 4B): related companies (bloque rel, motor
+  // v24.10). Semantica: undefined = no cargado (pre-v24.10 o red
+  // caida) => nota "not loaded yet" (regla 6: red caida != "no
+  // hay"); [] = buscado y sin relacionados => tarjeta honesta
+  // (tambien es dato de venta); [...] = relacionados con chips del
+  // campo que matchea. Un hermano Inactive ES la senal chameleon.
+  var rel = ins.rel;
+  if (rel === undefined) {
+    H += '<p class="ocap" style="margin:0 0 10px;text-align:center">Related companies not loaded yet \u2014 it refreshes automatically.</p>';
+  } else {
+    var VIA_LBL = {officer: 'Same officer', name: 'Same legal name',
+      phone: 'Same phone', email: 'Same email', address: 'Same address'};
+    // v6.17: el officer compartido es el del propio carrier (mismo
+    // registro Census) — mostrar el nombre es accionable para el
+    // agente. Colapso de espacios SOLO en display.
+    if (m && m.off1) VIA_LBL.officer = 'Officer: ' + String(m.off1).replace(/\s+/g, ' ').trim();
+    H += '<div class="icard">' + labelIco('doc', 'Related companies \u00b7 FMCSA Census');
+    if (!rel.length) {
+      H += '<p class="ocap" style="margin:2px 0 0">No other DOT shares this carrier\u2019s officer, legal name, phone, email or address in the current Census.</p></div>';
+    } else {
+      rel.forEach(function (r) {
+        var inact = r.st && r.st !== 'A';
+        H += '<div class="relr">' +
+          '<p class="tlt">DOT ' + esc(r.dot) + ' \u00b7 ' + esc(r.nm || '-') +
+            (inact ? ' <span class="iht rep" style="background:#fdecea;color:#b42318">Inactive</span>'
+                   : ' <span class="iht rep" style="background:#e6f4ee;color:#12805c">Active</span>') + '</p>' +
+          (function () {
+            var m2 = [
+              (r.pu != null ? r.pu + ' power units' : ''),
+              (r.drv != null ? r.drv + ' drivers' : ''),
+              (r.ad ? 'registered ' + esc(fechaIso(r.ad)) : '')
+            ].filter(Boolean).join(' \u00b7 ');
+            return m2 ? '<p class="tlm">' + m2 + '</p>' : '';
+          })() +
+          '<div class="achips" style="margin-top:5px">' +
+            (r.via || []).map(function (v) {
+              return '<span class="achip">' + esc(VIA_LBL[v] || v) + '</span>';
+            }).join('') + '</div></div>';
+      });
+      H += '<p class="ocap" style="margin:9px 0 0">Companies sharing this carrier\u2019s federal registration details \u2014 possible prior or successor operations (chameleon pattern). An inactive sibling with a bad record changes the risk picture: verify before quoting.</p></div>';
+    }
+  }
+  // 2c) v6.10: resumen de flota y conductores del MCS-150 (Census)
+  if (m && (m.trk != null || m.cdl != null || m.di != null || m.din != null)) {
+    H += '<div class="icard">' + labelIco('truck', 'Fleet & drivers \u00b7 MCS-150') +
+      '<div class="cstats" style="grid-template-columns:repeat(' +
+        [m.trk, m.cdl, m.di, m.din].filter(function(x){ return x != null; }).length + ',1fr)">' +
+      (m.trk != null ? '<div class="cs"><b>' + m.trk + '</b><span>Trucks</span></div>' : '') +
+      (m.cdl != null ? '<div class="cs"><b>' + m.cdl + '</b><span>CDL drivers</span></div>' : '') +
+      (m.di != null ? '<div class="cs"><b>' + m.di + '</b><span>Interstate</span></div>' : '') +
+      (m.din != null ? '<div class="cs"><b>' + m.din + '</b><span>Intrastate</span></div>' : '') +
+      '</div></div>';
+  }
+
+  // 3) Safety: barras OOS + rating
+  H += '<div class="icard">' + labelIco('gauge', 'Out of service rates \u00b7 last 24 months') +
+    barraOos('Driver OOS', p.oos && p.oos.d) +
+    barraOos('Vehicle OOS', p.oos && p.oos.v) +
+    ((p.oos && p.oos.h && p.oos.h.i) ? barraOos('Hazmat OOS', p.oos.h) : '') +
+    '</div>';
+  H += '<div class="icard">' + labelIco('shield', 'Safety rating') +
+    '<div class="drow" style="border-bottom:0"><span>FMCSA safety rating</span><b>' +
+    (p.rate ? esc(p.rate) + (p.rate_date ? ' \u00b7 ' + esc(p.rate_date) : '') : 'Not Available') + '</b></div>' +
+    (p.rate ? '' : '<p class="ocap" style="margin:4px 0 0">Most carriers are unrated \u2014 FMCSA only rates after a compliance review.</p>') +
+    '</div>';
+
+  // 4) Crashes (ventana SMS de 24 meses)
+  var c = p.crash || {};
+  var cv = function(x){ return (x === null || x === undefined) ? '-' : x; };
+  H += '<div class="icard">' + labelIco('wrench', 'Crashes \u00b7 last 24 months') +
+    '<div class="cstats">' +
+      '<div class="cs"><b>' + cv(c.t) + '</b><span>Total</span></div>' +
+      '<div class="cs"><b>' + cv(c.f) + '</b><span>Fatal</span></div>' +
+      '<div class="cs"><b>' + cv(c.i) + '</b><span>Injury</span></div>' +
+      '<div class="cs"><b>' + cv(c.tw) + '</b><span>Tow-away</span></div>' +
+    '</div></div>';
+
+  // 4b) v6.8 (Fase 3): Flota vista en inspecciones (VINs + vPIC).
+  // Es una MUESTRA (solo unidades inspeccionadas), y el panel lo dice.
+  var fl = ins.fleet;
+  if (fl && fl.list && fl.list.length) {
+    H += '<div class="icard">' + labelIco('truck', 'Fleet \u00b7 seen in roadside inspections');
+    fl.list.forEach(function(f, i){
+      var linea = lineaVehiculo(f);
+      var esTrailer = /trailer/i.test(f.t || '');
+      var viols = violacionesDeVin(ins, f.vin);
+      H += '<div class="fitem" id="fitem-' + i + '" onclick="toggleFlota(' + i + ')">' +
+        '<div><b>' + ico(esTrailer ? 'trailer' : 'truck') + (linea ? esc(linea) : esc(f.mk || '-')) + '</b>' +
+        '<span class="ftype">' + [
+          (f.t ? esc(tipoVehiculo(f.t)) : ''),
+          (f.lic ? esc((f.lst ? f.lst + ' ' : '') + f.lic) : ''),
+          (viols.length ? viols.length + ' violation' + (viols.length === 1 ? '' : 's') : '')
+        ].filter(Boolean).join(' \u00b7 ') + '</span></div>' +
+        '<span class="fvin">' + esc(f.vin) + '</span>' +
+        '<svg class="ic fchev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+          'stroke-linecap="round" stroke-linejoin="round" style="margin:0"><path d="M4 6l4 4 4-4"/></svg>' +
+      '</div>' +
+      '<div class="fdet" id="fdet-' + i + '">' +
+        (f.t ? '<div class="drow"><span>Type</span><b>' + esc(tipoVehiculo(f.t)) + '</b></div>' : '') +
+        (f.y ? '<div class="drow"><span>Model year</span><b>' + esc(f.y) + '</b></div>' : '') +
+        (f.g ? '<div class="drow"><span>GVWR class</span><b style="text-align:right">' + esc(f.g) + '</b></div>' : '') +
+        (f.lic ? '<div class="drow"><span>Plate</span><b>' + esc((f.lst ? f.lst + ' ' : '') + f.lic) + '</b></div>' : '') +
+        '<div class="drow" style="border-bottom:0"><span>VIN</span><b style="letter-spacing:.4px">' + esc(f.vin) + '</b></div>' +
+        (viols.length
+          ? '<div class="vlist">' + viols.map(function(v){
+              return '<div class="vitem' + (v.o ? ' voos' : '') + '">' +
+                '<div class="inh"><div class="vd">' + esc(v.txt || v.c) + '</div>' +
+                  '<span class="vchip ' + (v.o ? 'oos' : 'warn') + '">' + (v.o ? 'OOS' : 'Warning') + '</span></div>' +
+                '<div class="vm">' + esc(fechaIso(v.d) || v.d || '') + ' \u00b7 ' + esc(v.c || '') + '</div></div>';
+            }).join('') + '</div>'
+          : '<p class="ocap" style="margin:6px 0 8px">No violations recorded for this vehicle.</p>') +
+      '</div>';
+    });
+    H += '<p class="ocap" style="margin:8px 0 0">Tap a vehicle for details \u00b7 Seen in roadside inspections \u2014 may not be the full fleet.</p></div>';
+  } else if (ins.insp && ins.insp.n > 0) {
+    H += '<div class="icard"><p class="label">Fleet \u00b7 seen in roadside inspections</p>' +
+      '<p class="ocap" style="margin:0">No VINs recorded in this carrier\u2019s inspections.</p></div>';
+  }
+
+  // 5) Mileage / MCS-150 (Census; honesto si falta)
+  H += '<div class="icard">' + labelIco('cal', 'Mileage info') +
+    (m
+      ? '<div class="drow"><span>Annual mileage</span><b>' +
+          (m.mi ? esc(fmtMillas(m.mi)) + ' mi' : '-') + '</b></div>' +
+        '<div class="drow"><span>Reported year</span><b>' + esc(m.yr || '-') + '</b></div>' +
+        '<div class="drow" style="border-bottom:0"><span>MCS-150 update</span><b>' +
+          (m.date ? esc(fechaIso(m.date)) : '-') + '</b></div>'
+      : '<p class="ocap" style="margin:0">MCS-150 data not available from the FMCSA Census file.</p>') +
+    '</div>';
+
+  // 6) Pie
+  H += '<p class="ifoot">FMCSA QCMobile + Census data \u00b7 Updated ' + esc(ins.updated_at || '') + '<br>' +
+    '<a href="https://safer.fmcsa.dot.gov/query.asp?searchtype=ANY&query_type=queryCarrierSnapshot&query_param=USDOT&query_string=' +
+    encodeURIComponent(ins.dot || '') + '" target="_blank" rel="noopener">View SAFER snapshot</a></p>';
+  return H;
+}
+
+// ── v6.4: FULL DETAILS AGRUPADO ──
+// Mapa etiqueta (lowercase) -> grupo. Lo no reconocido cae en
+// "Other details": NINGUNA fila del motor se pierde jamas.
+// v6.5: orden de VENTA — calificacion primero, contacto al final
+// (llamar/escribir ya vive en los botones del hero). Dentro de cada
+// grupo las filas se ordenan segun esta lista (NAICS/SIC arriba de
+// Description, pedido de Rodrigo).
+// v6.6: orden final decidido por Rodrigo — Contact arriba, Coverage
+// answers al cierre. NAICS/SIC sigue primero en Business profile.
+var GRUPOS_DET = [
+  ['Contact', ['email','address','phone']],
+  ['Business profile', ['naics / sic','description','category','business type','years in business','owner experience']],
+  ['Financials', ['revenue','payroll','subcontractors','ft employees']],
+  ['Coverage answers', ['annual policy','currently insured','quoted elsewhere']]
+];
+// Montos que se normalizan a $X,XXX (FT employees es conteo, no dinero)
+var MONEY_DET = ['revenue','payroll','subcontractors'];
+function grupoDetalles(details){
+  var usados = {}, out = [];
+  GRUPOS_DET.forEach(function(g){
+    var filas = [];
+    (details || []).forEach(function(x, i){
+      if (usados[i]) return;
+      if (g[1].indexOf(String(x[0] || '').toLowerCase().trim()) !== -1) { usados[i] = 1; filas.push(x); }
+    });
+    // v6.5: orden interno segun la lista del grupo (NAICS/SIC primero)
+    filas.sort(function(a, b){
+      return g[1].indexOf(String(a[0]).toLowerCase().trim()) - g[1].indexOf(String(b[0]).toLowerCase().trim());
+    });
+    if (filas.length) out.push({t: g[0], f: filas});
+  });
+  var resto = [];
+  (details || []).forEach(function(x, i){ if (!usados[i]) resto.push(x); });
+  if (resto.length) out.push({t: 'Other details', f: resto});
+  return out;
+}
+function filaDet(x){
+  var v = String(x[1] === null || x[1] === undefined ? '' : x[1]);
+  var etiqueta = String(x[0] || '').toLowerCase().trim();
+  var low = v.trim().toLowerCase(), val;
+  // v6.5: montos normalizados — el motor a veces manda "300,000" y a
+  // veces "$60,000"; aqui salen SIEMPRE como $X,XXX. Solo si el valor
+  // es numerico limpio; cualquier otra cosa se muestra tal cual.
+  if (MONEY_DET.indexOf(etiqueta) !== -1) {
+    var num = v.replace(/[$,\s]/g, '');
+    if (/^\d+(\.\d+)?$/.test(num)) v = '$' + Number(num).toLocaleString('en-US');
+    low = '';
+  }
+  if (low === 'yes') val = '<span class="pv yes">Yes</span>';
+  else if (low === 'no') val = '<span class="pv no">No</span>';
+  else if (etiqueta === 'email' && v.indexOf('@') !== -1)
+    val = '<b><a class="dlink" href="mailto:' + esc(v) + '">' + esc(v) + '</a></b>';
+  else val = '<b>' + esc(v) + '</b>';
+  return '<div class="drow"><span>' + esc(x[0]) + '</span>' + val + '</div>';
+}
+
+// Fila del DETALLE (bajo las notas). Sin DOT: cadena vacía.
+function filaSeguroDetalle(d){
+  if (!d.dot) return '';
+  var etiqueta, s;
+  if (d.insurance) {
+    var e = estadoChip(d.insurance.c || null);
+    s = e ? e.s : 'gray';
+    if (d.insurance.carrier && d.insurance.carrier.exists === false) s = 'red';
+    etiqueta = d.insurance.active ? (d.insurance.active.insurer || '-')
+      : (d.insurance.carrier && d.insurance.carrier.exists === false ? 'DOT not found \u2014 check the number'
+      : (d.insurance.no_filing ? 'No FMCSA filing on record' : 'No active insurance on file'));
+  } else { s = 'gray'; etiqueta = 'Insurance \u2014 tap to load'; }
+  return '<button type="button" class="insrow" id="btn-ins">' +
+    '<span class="idot ' + claseDot(s) + '"></span>' +
+    '<span class="imain"><span class="ittl">Insurance \u00b7 DOT ' + esc(d.dot) + '</span>' +
+    '<span class="ival">' + esc(etiqueta) + '</span></span>' +
+    '<span class="ichev">&#8250;</span></button>';
+}
+
+function verDetalle(id, t, desdeLista){
+  // v5.4: si el gesto humano ya ocurrió (p. ej. tap en la lista),
+  // registrar la apertura al entrar al detalle.
+  aperturaEnviada = false;
+  if (humano) setTimeout(enviarApertura, 0);
+  vistaActual = 'detalle';
+  ID = id; T = t;
+  // v4.4: si el lead está en la lista, pintar el encabezado y los
+  // botones Call/WhatsApp AL INSTANTE mientras llega el detalle
+  // completo. Los links de correo (sin lista cargada) conservan el
+  // spinner. El registro de apertura sigue siendo api=lead: nada
+  // cambia en las métricas.
+  // v6.6: cache por lead — si ya lo visitamos, el detalle COMPLETO
+  // pinta al instante y api=lead refresca en segundo plano.
+  var cacheado = null;
+  try { cacheado = JSON.parse(localStorage.getItem('jl_lead_v1_' + id) || 'null'); } catch (e) {}
+  if (cacheado && cacheado.ok) {
+    LEAD = cacheado; render();
+  } else {
+    var prev = null;
+    for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
+    if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
+  }
+  // v4.4: sin ping previo en modo admin — el motor v21.5 responde
+  // admin_expired sin registrar apertura si la sesión venció.
+  cargarDetalle();
+}
+
+// v4.4: encabezado provisional con los datos que ya tenemos de la
+// lista. Se reemplaza completo cuando llega api=lead.
+function pintarEsqueleto(l){
+  var chips = (l.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
+  var eDesk = !!(window.matchMedia && matchMedia('(min-width:900px)').matches);
+  var hInfo =
+      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
+      '<div class="row"><span class="eyebrow">Lead ' + esc(l.id) + (l.sent ? ' · Sent ' + esc(l.sent) : '') +
+        (ADM ? ' · ADMIN' : '') + '</span>' +
+      pillEstado(l.status) + '</div>' +
+      '<h1>' + esc(l.name || '-') + '</h1>' +
+      '<p class="biz">' + esc(l.business || '') + (l.type ? ' · ' + esc(l.type) : '') + '</p>' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '');
+  var hActs =
+      '<a class="act call" id="btn-call-sk" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
+      '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>';
+  app.innerHTML =
+    (eDesk
+      ? '<div class="hero det-hero"><div class="hinner"><div class="hmain">' + hInfo + '</div>' +
+        '<div class="hacts">' + hActs + '</div></div></div>'
+      : '<div class="hero det-hero">' + hInfo + '</div><div class="acts">' + hActs + '</div>') +
+    '<div class="wrap det solo"><div class="spin" style="margin:44px auto"></div></div>';
+  document.getElementById('btn-lista').onclick = irALeads;
+  // v5: un Call desde el esqueleto también cuenta (el detalle aún carga)
+  var bsk = document.getElementById('btn-call-sk');
+  if (bsk) bsk.addEventListener('click', registrarLlamada);
+}
+
+function cargarDetalle(){
+  fetch(API + '?api=lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.ok) {
+        // v4.4: sesión admin vencida — pedir código nuevo (el motor NO
+        // registró la apertura).
+        if (d.admin_expired) { borrarAdmin(); verOtp(true); return; }
+        if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
+        app.innerHTML = '<div class="center"><h2>Invalid link</h2><p class="muted">' +
+          esc(d.error || 'This link does not match any lead.') + '</p>' +
+          '<button class="btn-back" onclick="irALeads()">All leads</button></div>';
+        return;
+      }
+      if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
+      // v6.6: guardar cache y re-renderizar SOLO si la data cambio y
+      // la agente no esta a mitad de una seleccion (sel === null).
+      var igual = false;
+      try { igual = JSON.stringify(LEAD) === JSON.stringify(d); } catch (e) {}
+      try { localStorage.setItem('jl_lead_v1_' + ID, JSON.stringify(d)); } catch (e) {}
+      if (igual) return;
+      if (sel !== null && LEAD && LEAD.id === d.id) { LEAD = d; return; } // data fresca sin pisar el click
+      LEAD = d; render();
+    })
+    .catch(function(){
+      if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
+      app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
+        '<p class="muted">Check your signal and reload the page.</p></div>';
+    });
+}
+function cargar(){ verDetalle(ID, T, false); }
+
+function render(){
+  var d = LEAD, pc = COLORES[d.status] || '#667085';
+  // v4.1: modo admin = solo lectura (el servidor ya confirmó con d.admin)
+  var esAdmin = !!(ADM && d.admin);
+  var j = d.jenny || {notes: []};
+  var chips = (d.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
+
+  var notas = '';
+  if (d.notes) {
+    notas = '<div class="card warn notes"><p class="label">Notes from Rodrigo — read first</p><ul>' +
+      d.notes.split(';').map(function(s){return s.trim();}).filter(Boolean)
+        .map(function(n){ return '<li>' + esc(n) + '</li>'; }).join('') + '</ul></div>';
+  }
+
+  var actRows = [];
+  if (j.premium) actRows.push('<div class="drow"><span>Policy premium</span><b>$' + esc(j.premium) + '</b></div>');
+  if (j.agent_comm) actRows.push('<div class="drow"><span>Agent commission</span><b>' + esc(j.agent_comm) + '%</b></div>');
+  if (j.term) actRows.push('<div class="drow"><span>Policy term</span><b>' + esc(j.term) + ' months</b></div>');
+  if (j.loss_reason) actRows.push('<div class="drow"><span>Loss reason</span><b>' + esc(j.loss_reason) + '</b></div>');
+  var actNotas = (j.notes && j.notes.length)
+    ? '<ul style="margin:6px 0 0;padding-left:18px">' + j.notes.map(function(n){
+        return '<li style="font-size:14px;color:#344054;margin-bottom:4px">' + esc(n) + '</li>'; }).join('') + '</ul>' : '';
+  var actividad = (actRows.length || actNotas)
+    ? '<div class="card act-prev"><p class="label">Your activity</p>' +
+      '<div class="actbody" id="actbody">' + actRows.join('') + actNotas + '</div>' +
+      '<div class="actfade"></div>' +
+      '<button type="button" class="actmore" id="actmore">Show all</button></div>' : '';
+
+  // v6.4: Full details agrupado. Movil = una tarjeta colapsable con
+  // subtitulos (flujo original). Desktop = una tarjeta por grupo en
+  // la sidebar de referencia.
+  var grupos = grupoDetalles(d.details || []);
+  var det = '', detCards = '';
+  if (grupos.length) {
+    det = '<details class="card"><summary>Full details</summary><div class="inner">' +
+      grupos.map(function(g){
+        return '<p class="gsub">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('');
+      }).join('') + '</div></details>';
+    // v6.5: UNA tarjeta seccionada, sin scroll interno (contenido
+    // oculto = trampa; todo visible, filas compactas).
+    detCards = '<div class="card dets"><p class="label">Lead details</p>' +
+      grupos.map(function(g){
+        return '<p class="gsub">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('');
+      }).join('') + '</div>';
+  }
+
+  var botones = OPCIONES.map(function(o){
+    var esActual = o[3] === d.status;
+    return '<button type="button" class="st" data-s="' + o[0] + '" data-l="' + o[1] + '" style="--c:' + o[2] + '">' +
+      '<span class="dot"></span>' + o[1] + (esActual ? '<span class="curtag">CURRENT</span>' : '') + '</button>';
+  }).join('');
+
+  // v6.5: la tarjeta queda SOLO con los botones. Los campos del
+  // status, la nota opcional y los errores viven en la hoja de
+  // confirmacion que abre el boton Save (dos pasos, foco total).
+  var tarjetaEstado = esAdmin ? '' :
+      '<div class="card statuscard">' +
+        '<p class="label">Update status</p>' +
+        '<div class="grid" id="sts">' + botones + '</div>' +
+      '</div>';
+
+  // v6.3.1: layout decidido por viewport al renderizar. Movil =
+  // flujo original de Jenny, intacto. Desktop = hero-tarjeta con
+  // acciones a la derecha + grilla principal/lateral que se adapta
+  // a las tarjetas que EXISTAN (modo admin incluido).
+  var esDesk = !!(window.matchMedia && matchMedia('(min-width:900px)').matches);
+  var heroInfo =
+      '<button class="backlink" id="btn-lista">&#8249; All leads</button>' +
+      '<div class="row"><span class="eyebrow">Lead ' + esc(d.id) + (d.sent ? ' · Sent ' + esc(d.sent) : '') +
+        (esAdmin ? ' · ADMIN' : '') + '</span>' +
+      pillEstado(d.status) + '</div>' +
+      '<h1>' + esc(d.name) + '</h1>' +
+      '<p class="biz">' + esc(d.business) + (d.type ? ' · ' + esc(d.type) : '') + '</p>' +
+      (chips ? '<div class="chips">' + chips + '</div>' : '') +
+      (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '');
+  var actsHtml =
+      '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
+      '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>';
+  var hero, cuerpo;
+  if (esDesk) {
+    hero = '<div class="hero det-hero"><div class="hinner">' +
+      '<div class="hmain">' + heroInfo + '</div>' +
+      '<div class="hacts">' + actsHtml + '</div></div></div>';
+    var dMain = [notas, actividad, tarjetaEstado].filter(function(x){ return !!x; });
+    var dLado = [filaSeguroDetalle(d), detCards].filter(function(x){ return !!x; });
+    if (!dMain.length) { dMain = dLado; dLado = []; } // jamas una columna fantasma
+    cuerpo = '<div class="wrap det' + (dLado.length ? '' : ' solo') + '">' +
+      (dLado.length ? '<div class="dside">' + dLado.join('') + '</div>' : '') +
+      '<div class="dmain">' + dMain.join('') + '</div>' +
+      '</div>';
+  } else {
+    hero = '<div class="hero det-hero">' + heroInfo + '</div>' +
+      '<div class="acts">' + actsHtml + '</div>';
+    cuerpo = '<div class="wrap det">' +
+      notas + filaSeguroDetalle(d) + actividad + det + tarjetaEstado +
+      '</div>';
+  }
+  app.innerHTML = hero + cuerpo +
+    (esAdmin ? '' : '<div class="savebar"><button id="save" class="save" disabled>Select a status above</button></div>');
+
+  sel = null; selLabel = '';
+  document.getElementById('btn-lista').onclick = irALeads;
+
+  // v6.6: clamp de Your activity — si el contenido excede el tope,
+  // se recorta con degradado y aparece "Show all".
+  (function(){
+    var ab = document.getElementById('actbody');
+    if (!ab) return;
+    var tarjeta = ab.parentNode;
+    if (ab.scrollHeight > 230) {
+      tarjeta.classList.add('clamp');
+      document.getElementById('actmore').onclick = function(){
+        tarjeta.classList.remove('clamp');
+      };
+    }
+  })();
+
+  // v6: Insurance Intel — abre el sheet (con data cargada) o dispara
+  // el fetch on-demand cuando la celda sigue pendiente.
+  var bIns = document.getElementById('btn-ins');
+  if (bIns) bIns.addEventListener('click', function(){
+    abrirSeguro(d.dot, d.insurance || null);
+  });
+
+  // v4.1: en modo admin no hay controles de estado ni prompt post-llamada
+  if (esAdmin) return;
+
+  // v4.3/v6.5: término de la póliza — default 12, prellenado si ya
+  // existe. Los inputs viven en la hoja de confirmacion (se prellenan
+  // y se cablean al abrirla).
+  var termSel = (j.term === 6) ? 6 : 12;
+
+  var btns = app.querySelectorAll('#sts .st');
+  btns.forEach(function(b){
+    b.onclick = function(){
+      sel = b.getAttribute('data-s');
+      selLabel = b.getAttribute('data-l');
+      btns.forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel');
+      var sv = document.getElementById('save');
+      sv.disabled = false;
+      sv.textContent = 'Save: ' + selLabel;
+    };
+  });
+
+  // ── Post-llamada: al volver de marcar, un tap guarda el resultado ──
+  var tsLlamada = 0, promptMostrado = false;
+  document.getElementById('btn-call').addEventListener('click', function(){
+    tsLlamada = Date.now(); promptMostrado = false;
+    registrarLlamada(); // v5: conteo + status Called + aviso (motor v23)
+  });
+
+  function pantallaExito(dd){
+    try { localStorage.removeItem('jl_lead_v1_' + ID); } catch (e) {} // v6.6: proximo open, fresco
+    app.innerHTML =
+      '<div class="center">' +
+      '<div class="okmark">✓</div>' +
+      '<h2>Update saved</h2>' +
+      '<p><b>' + esc(dd.id) + '</b> marked as ' + pillEstado(dd.status) + '</p>' +
+      (dd.detail ? '<p class="muted">' + esc(dd.detail) + '</p>' : '') +
+      '<div><button class="btn-back" onclick="cargar()">Back to lead</button>' +
+      '<button class="btn-back sec" onclick="irALeads()">All leads</button></div>' +
+      '</div>';
+  }
+
+  function guardarRapido(estado, etiqueta){
+    var cp = document.getElementById('callprompt');
+    if (cp) cp.remove();
+    if (!humano && !ADM) return; // v5.5: un sandbox jamás guarda un status
+    var url = API + '?api=save&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+      '&s=' + estado + '&notes=';
+    var sv = document.getElementById('save');
+    if (sv) { sv.disabled = true; sv.textContent = 'Saving: ' + etiqueta + '...'; }
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+          var err = document.getElementById('err');
+          if (err) err.textContent = d.error || 'Could not save. Try again.'; return; }
+        pantallaExito(d);
+      })
+      .catch(function(){
+        if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
+        var err = document.getElementById('err');
+        if (err) err.textContent = 'Connection error. Your update was not saved — try again.';
+      });
+  }
+
+  function mostrarPromptLlamada(){
+    if (vistaActual !== 'detalle') return;
+    if (promptMostrado || !tsLlamada) return;
+    if (Date.now() - tsLlamada < 8000) return;
+    promptMostrado = true; tsLlamada = 0;
+    var div = document.createElement('div');
+    div.className = 'callprompt'; div.id = 'callprompt';
+    div.innerHTML =
+      '<p>How did the call go?</p>' +
+      '<div class="cp-row">' +
+        '<button type="button" class="cp-btn cp-yes" id="cp-yes">✓ Contacted</button>' +
+        '<button type="button" class="cp-btn cp-no" id="cp-no">Not reached</button>' +
+      '</div>' +
+      '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
+    document.body.appendChild(div);
+    document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
+    document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
+    document.getElementById('cp-later').onclick = function(){ div.remove(); };
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') mostrarPromptLlamada();
+  });
+  window.addEventListener('pageshow', mostrarPromptLlamada);
+
+  // ── v6.5: GUARDADO EN DOS PASOS ──
+  // Paso 1: boton Save (savebar) abre la hoja de confirmacion con los
+  // campos del status elegido + nota opcional. Paso 2: Confirm & save
+  // valida y dispara api=save con EXACTAMENTE los mismos parametros
+  // de siempre (contrato con el motor intacto).
+  var confirmAbierto = null;
+  function cerrarConfirm(){
+    if (!confirmAbierto) return;
+    var el = confirmAbierto; confirmAbierto = null;
+    el.ov.classList.remove('on'); el.sh.classList.remove('on');
+    setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
+      if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
+    var sv = document.getElementById('save');
+    if (sv && sel) { sv.disabled = false; sv.textContent = 'Save: ' + selLabel; }
+  }
+  function camposDeStatus(){
+    if (sel === 'sold') {
+      return '<label>Policy premium ($) <span class="req">required</span></label>' +
+        '<input id="sold_premium" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">' +
+        '<label>Agent commission (%) <span class="opt">optional</span></label>' +
+        '<input id="sold_comm" type="number" step="0.01" min="0.01" max="100" inputmode="decimal" placeholder="%">' +
+        '<label>Policy term <span class="req">required</span></label>' +
+        '<div class="grid" id="term-grid" style="grid-template-columns:1fr 1fr;gap:8px">' +
+          '<button type="button" class="st term-btn" data-term="6" style="--c:#2563eb"><span class="dot"></span>6 months</button>' +
+          '<button type="button" class="st term-btn" data-term="12" style="--c:#2563eb"><span class="dot"></span>12 months</button>' +
+        '</div>';
+    }
+    if (sel === 'quoted') {
+      return '<label>Quoted premium ($) <span class="opt">optional</span></label>' +
+        '<input id="quoted_premium" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">';
+    }
+    if (sel === 'declined') {
+      return '<label>Reason</label><select id="reason">' +
+        ['Price too high','Coverage mismatch','No response from client','Slow follow-up',
+         'Went with another agent','Not qualified / ineligible','Other']
+          .map(function(r){ return '<option>' + r + '</option>'; }).join('') + '</select>';
+    }
+    return '';
+  }
+  function abrirConfirmSave(){
+    cerrarConfirm();
+    var ov = document.createElement('div'); ov.className = 'ov';
+    var sh = document.createElement('div'); sh.className = 'sheet';
+    sh.innerHTML =
+      '<div class="shead"><div><div class="sttl">Save: ' + esc(selLabel) + '</div>' +
+        '<div class="ssub">Lead ' + esc(ID) + '</div></div>' +
+        '<button type="button" class="sclose" aria-label="Close">&#10005;</button></div>' +
+      '<div class="sbody">' + camposDeStatus() +
+        '<label>Notes <span class="opt">optional</span></label>' +
+        '<textarea id="notes" placeholder="Anything worth noting"></textarea>' +
+        '<p id="err" class="errline"></p>' +
+        '<button type="button" class="cbtn" id="confirm-save">Confirm &amp; save</button>' +
+      '</div>';
+    document.body.appendChild(ov); document.body.appendChild(sh);
+    ov.addEventListener('click', cerrarConfirm);
+    sh.querySelector('.sclose').addEventListener('click', cerrarConfirm);
+    confirmAbierto = {ov: ov, sh: sh};
+    requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+    // Prellenados (mismos de siempre) + termino
+    if (sel === 'sold') {
+      if (j.premium) document.getElementById('sold_premium').value = j.premium;
+      if (j.agent_comm) document.getElementById('sold_comm').value = j.agent_comm;
+      var termBtns = sh.querySelectorAll('.term-btn');
+      termBtns.forEach(function(tb){
+        tb.classList.toggle('sel', parseInt(tb.getAttribute('data-term'), 10) === termSel);
+        tb.onclick = function(ev){
+          ev.stopPropagation();
+          termSel = parseInt(tb.getAttribute('data-term'), 10);
+          termBtns.forEach(function(x){ x.classList.remove('sel'); });
+          tb.classList.add('sel');
+        };
+      });
+    }
+    if (sel === 'quoted' && j.premium) document.getElementById('quoted_premium').value = j.premium;
+    document.getElementById('confirm-save').onclick = enviarGuardado;
+  }
+  function enviarGuardado(){
+    var err = document.getElementById('err');
+    var cb = document.getElementById('confirm-save');
+    err.textContent = '';
+    function fallo(msg){ err.textContent = msg; cb.disabled = false; cb.innerHTML = 'Confirm &amp; save'; }
+    var params = {api:'save', id:ID, t:T, s:sel, notes:document.getElementById('notes').value};
+    if (sel === 'sold') {
+      var sp = parseFloat(document.getElementById('sold_premium').value);
+      var scRaw = document.getElementById('sold_comm').value;
+      var sc = scRaw ? parseFloat(scRaw) : null;
+      if (!(sp > 0)) { fallo('Policy premium is required (greater than 0).'); return; }
+      if (sc !== null && !(sc > 0 && sc <= 100)) { fallo('Agent commission must be a percentage between 0 and 100, or leave it empty.'); return; }
+      params.sold_premium = sp;
+      if (sc !== null) params.sold_comm = sc;
+      params.sold_term = termSel;
+    }
+    if (sel === 'quoted') params.quoted_premium = document.getElementById('quoted_premium').value;
+    if (sel === 'declined') params.reason = document.getElementById('reason').value;
+
+    cb.disabled = true; cb.textContent = 'Saving...';
+    var url = API + '?' + Object.keys(params).map(function(k){
+      return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
+    fetch(url)
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (!d.ok) { fallo(d.error || 'Could not save. Try again.'); return; }
+        cerrarConfirm();
+        pantallaExito(d);
+      })
+      .catch(function(){ fallo('Connection error. Your changes were not saved — try again.'); });
+  }
+  document.getElementById('save').onclick = function(){
+    if (!sel) return;
+    abrirConfirmSave();
+  };
+}
+
+arrancar();
+</script>
+</body>
+</html>
