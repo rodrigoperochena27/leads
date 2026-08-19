@@ -8,7 +8,9 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.5 (kateryna.html) — fork 1:1 de index.html
+   KATERYNA LEAD PANEL v1.6 (kateryna.html) — fork 1:1 de index.html
+   v6.24 (motor v24.15): matches del cruce + tarjeta EPA ECHO
+   (espejo de index v6.24).
    v6.23 (motor v24.14.8). v1.5: tarjeta OSHA por estado — M1 de la
    auditoria (espejo de index v6.23). v1.4: tarjeta precargada + Fingerprint
    escaneable (espejo de index v6.22). v1.3: tarjeta FMCSA cross-check + botones
@@ -1060,7 +1062,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.23</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.24</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2209,6 +2211,20 @@ function vTabVerifyHTML(v){
   H += '<div class="icard">' + labelIco('gauge', 'Workers\u2019 comp context') + vChip(w.st) +
     (w.mono ? '<p class="vkv"><b>Monopolistic state.</b></p>' : '') +
     (w.det ? '<p class="vkv">' + esc(w.det) + '</p>' : '') + '</div>';
+  // v6.24: tarjeta EPA ECHO (motor v24.15, sonda S3) — report-only.
+  var ec = v.echo || null;
+  if (ec && ec.st !== 'NOT_APPLICABLE') {
+    H += '<div class="icard">' + labelIco('gauge', 'EPA environmental records') + vChip(ec.st) +
+      (ec.st === 'FOUND'
+        ? '<p class="vkv"><b>' + ec.n + '</b> regulated facility record(s) matched the business name' +
+          (ec.insp ? ' \u00b7 ' + ec.insp + ' inspection row(s)' : '') +
+          (ec.pen && ec.pen !== '$0' ? ' \u00b7 penalties on file: ' + esc(ec.pen) : '') + '.</p>' +
+          '<p class="ocap">Matched by name in EPA ECHO \u2014 a lead to confirm, not a confirmed identity.</p>'
+        : ec.st === 'NOT_FOUND_EXPECTED'
+        ? '<p class="vkv">No EPA-regulated facility records matched this business name.</p>'
+        : '<p class="vkv">The automated EPA search was not run \u2014 use the manual search.</p>') +
+      vLink(ec.url, 'Open EPA ECHO search') + '</div>';
+  }
   var o = v.osha || {};
   // v6.23 (M1): el texto sigue al ESTADO. Antes DEEPLINK/SKIPPED/
   // NOT_APPLICABLE (la busqueda NO corrio) afirmaban "no records
@@ -2237,9 +2253,23 @@ function vTabFingHTML(v){
       (p.addr_match === 'match' ? ' <span class="achip ok">Matches lead</span>' :
        p.addr_match === 'differs' ? ' <span class="achip warn">Differs from lead</span>' : '') + '</p>';
     if (p.web && p.web.reviews_signal) H += '<p class="vkv">Reviews signal: ' + esc(p.web.reviews_signal) + '</p>';
-    if ((p.notes || []).length) H += p.notes.map(function(n){
-      return '<p class="vkv">\u2022 ' + esc(n) + '</p>'; }).join('');
-    else H += '<p class="vkv">No differences from the declared line were noted by the automated search.</p>';
+    // v6.24: matches del motor de cruce (v24.15) — evidencia por
+    // llaves. FUERTE = 2+ llaves duras; POSIBLE = 1 llave, a
+    // confirmar. Celdas viejas sin matches renderizan como antes.
+    if ((p.matches || []).length) {
+      H += (p.matches || []).map(function(m){
+        var fuerte = m.grade === 'strong';
+        return '<p class="vkv"><b>' + esc(m.tn) + '</b> ' +
+          '<span class="achip ' + (fuerte ? 'ok' : 'warn') + '">' +
+          (fuerte ? 'Strong match' : 'Possible match') + '</span> ' +
+          '<span class="achip">matched by: ' + esc((m.keys || []).join(' + ')) + '</span>' +
+          ((m.obs || []).length ? '<br>' + esc(m.obs.join(' \u00b7 ')) : '') + '</p>';
+      }).join('') +
+      '<p class="ocap" style="margin:8px 0 0">Matches are graded by hard keys (2+ keys = strong, 1 = possible). A possible match is a lead to confirm, not a confirmed identity.</p>';
+    } else if ((p.notes || []).length) {
+      H += p.notes.map(function(n){
+        return '<p class="vkv">\u2022 ' + esc(n) + '</p>'; }).join('');
+    } else H += '<p class="vkv">No differences from the declared line were noted by the automated search.</p>';
     if ((p.links || []).length) H += '<p class="vkv" style="margin-top:6px">Sources:</p>' +
       p.links.map(function(L){ return vLink(L.u, L.t || 'source'); }).join('');
   } else if (p.st === 'NOT_FOUND') { // v6.22: copy corto del panel
