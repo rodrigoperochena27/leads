@@ -8,7 +8,8 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.6 (kateryna.html) — fork 1:1 de index.html
+   KATERYNA LEAD PANEL v1.7 (kateryna.html) — fork 1:1 de index.html
+   v6.25: rediseno hallazgos-primero (espejo de index v6.25).
    v6.24 (motor v24.15): matches del cruce + tarjeta EPA ECHO
    (espejo de index v6.24).
    v6.23 (motor v24.14.8). v1.5: tarjeta OSHA por estado — M1 de la
@@ -600,6 +601,8 @@ textarea{height:62px;resize:vertical}
 /* v6.18 (Fase 4D): bullets de talking points */
 .tpul{margin:4px 0 0;padding-left:17px}
 .tpul li{font-size:12.5px;font-weight:600;color:#17233b;margin:4px 0;line-height:1.35}
+.vfind{padding:10px 0;border-bottom:1px solid #eef0f4}
+.vfind:last-of-type{border-bottom:0}
 /* v6.2: filas y chips del tab Carrier */
 .achips{display:flex;flex-wrap:wrap;gap:6px}
 .achip{display:inline-block;font-size:11px;font-weight:700;padding:4px 10px;border-radius:8px;background:#eef0f4;color:#475467}
@@ -1062,7 +1065,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.24</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v6.25</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -2158,85 +2161,128 @@ function vLink(url, txt){
 // ── Tab 1: VERIFY (identidad y contexto regulatorio) ──
 function vTabVerifyHTML(v){
   var H = '';
+  var r = v.reg || {}, l = v.lic || {}, w = v.wc || {}, o = v.osha || {};
+  var fm = v.fmcsa || null, ec = v.echo || null;
+  var ms = (v.ops && v.ops.matches) || [];
+  var pills = function(keys){ return (keys || []).map(function(k){
+    return '<span class="achip">' + esc(k) + '</span>'; }).join(' '); };
+
+  // v6.25 — WHAT WE FOUND: solo hallazgos reales, cada uno como una
+  // oracion con su evidencia (llaves), coherencia vs lo declarado,
+  // reviews y fuente. Es lo PRIMERO que ve la agente para confirmar
+  // con el cliente ("se encontro el LLC tal, coincide con...").
+  var F = [];
+  ms.forEach(function(m){
+    var fuerte = m.grade === 'strong';
+    F.push('<div class="vfind"><p class="vkv" style="margin:0"><b>' + esc(m.tn) + '</b> ' +
+      '<span class="achip ' + (fuerte ? 'ok' : 'warn') + '">' + (fuerte ? 'Strong match' : 'Possible match') + '</span> ' +
+      pills(m.keys) + '</p>' +
+      '<p class="vkv" style="margin:4px 0 0">' +
+      (fuerte ? 'Found under the lead\u2019s ' + esc((m.keys || []).join(' and '))
+              : 'Matched on one key only \u2014 to confirm on the call') +
+      ((m.obs || []).length ? ' \u00b7 advertises ' + esc(m.obs.slice(0, 4).join(', ')) : '') + '.' +
+      (m.coh === 'match' ? ' <span class="achip ok">Matches the declared line</span>' :
+       m.coh === 'differs' ? ' <span class="achip warn">Differs from the declared line</span>' : '') + '</p>' +
+      (m.rev ? '<p class="vkv" style="margin:4px 0 0">Reviews found for ' + esc(m.tn) + ': ' + esc(m.rev) + '</p>' : '') +
+      '</div>');
+  });
+  if (r.st === 'VERIFIED') {
+    F.push('<div class="vfind"><p class="vkv" style="margin:0"><b>' + esc(r.nm || '') + '</b> ' +
+      '<span class="achip ok">State-registered</span>' +
+      (r.status ? ' <span class="achip">' + esc(r.status) + '</span>' : '') + '</p>' +
+      '<p class="vkv" style="margin:4px 0 0">' +
+      (r.formed ? 'Formed ' + esc(r.formed) : 'Registration on file') +
+      (r.agent ? ' \u00b7 registered agent ' + esc(r.agent) : '') + '.' +
+      (r.addr_match === 'match' ? ' <span class="achip ok">Address matches lead</span>' :
+       r.addr_match === 'differs' ? ' <span class="achip warn">Address differs from lead</span>' : '') +
+      '</p></div>');
+  }
+  if (fm && fm.st === 'FOUND') {
+    F.push('<div class="vfind"><p class="vkv" style="margin:0"><b>Federal carrier census</b> ' +
+      '<span class="achip warn">Possible match</span></p>' +
+      (fm.hits || []).map(function(h){
+        return '<p class="vkv" style="margin:4px 0 0">DOT ' + esc(h.dot) + ' \u00b7 ' + esc(h.nm) +
+          ' ' + pills(h.by) + '</p>'; }).join('') + '</div>');
+  }
+  if (ec && ec.st === 'FOUND') {
+    F.push('<div class="vfind"><p class="vkv" style="margin:0"><b>EPA records</b> ' +
+      '<span class="achip warn">Records found</span></p>' +
+      '<p class="vkv" style="margin:4px 0 0">' + ec.n + ' regulated facility record(s) under the business name' +
+      (ec.pen && ec.pen !== '$0' ? ' \u00b7 penalties on file ' + esc(ec.pen) : '') + '.</p></div>');
+  }
+  if (o.st === 'FOUND') {
+    F.push('<div class="vfind"><p class="vkv" style="margin:0"><b>OSHA history</b> ' +
+      '<span class="achip warn">Records found</span></p>' +
+      '<p class="vkv" style="margin:4px 0 0">' + o.n + ' inspection record(s)' +
+      (o.last ? ' \u00b7 most recent ' + esc(o.last) : '') + '.</p></div>');
+  }
+  var srcs = ((v.ops && v.ops.links) || []).slice(0, 2)
+    .map(function(L){ return vLink(L.u, L.t ? ('Source: ' + L.t).slice(0, 60) : 'Source'); }).join('');
+  H += '<div class="icard">' + labelIco('gauge', 'What we found') +
+    (F.length ? F.join('') + srcs
+      : '<p class="vkv">Nothing in public sources matched this business\u2019s hard keys (phone, street number, name). This is context, not a conclusion \u2014 social-media-only presence is often invisible here.</p>') +
+    '</div>';
+
+  // AI summary — solo si trae bullets.
   if (v.tp && v.tp.b && v.tp.b.length) {
     H += '<div class="icard">' + labelIco('gauge', 'Before you call') +
-      '<ul class="tpul">' + v.tp.b.slice(0, 6).map(function(b){
-        return '<li>' + esc(b) + '</li>'; }).join('') + '</ul>' +
-      '<p class="ocap" style="margin:8px 0 0">AI summary of public-source findings \u2014 each point is verifiable in the cards below.</p></div>';
+      '<ul class="tpul">' + v.tp.b.slice(0, 4).map(function(b){
+        return '<li>' + esc(b) + '</li>'; }).join('') + '</ul></div>';
   }
   if ((v.flags || []).length) {
     H += '<div class="icard">' + labelIco('gauge', 'Flags') +
       v.flags.map(function(f){ return '<p class="vkv">\u2022 ' + esc(f.t) + '</p>'; }).join('') + '</div>';
   }
-  var r = v.reg || {};
-  H += '<div class="icard">' + labelIco('gauge', 'State registration') + vChip(r.st);
-  if (r.st === 'VERIFIED') {
-    H += '<p class="vkv"><b>' + esc(r.nm || '') + '</b>' + (r.status ? ' \u00b7 ' + esc(r.status) : '') + '</p>' +
-      (r.formed ? '<p class="vkv">Formed: <b>' + esc(r.formed) + '</b></p>' : '') +
-      (r.agent ? '<p class="vkv">Registered agent: <b>' + esc(r.agent) + '</b></p>' : '') +
-      (r.addr ? '<p class="vkv">Registered address: ' + esc(r.addr) +
-        (r.addr_match === 'match' ? ' <span class="achip ok">Matches lead</span>' :
-         r.addr_match === 'differs' ? ' <span class="achip warn">Differs from lead</span>' : '') + '</p>' : '');
-  } else if (r.st === 'NOT_FOUND_FLAG') {
-    H += '<p class="vkv">No registration found under the exact name in the state registry.</p>' + vLink(r.url, 'Open state search');
-  } else if (r.st === 'NOT_FOUND_EXPECTED') {
-    H += '<p class="vkv">No registration found under the exact name \u2014 consistent with a new or unregistered trade name.</p>' + vLink(r.url, 'Open state search');
-  } else {
-    H += '<p class="vkv">This state\u2019s registry is a manual lookup.</p>' + vLink(r.url, 'Open state registry');
+
+  // Tarjetas de detalle SOLO informativas.
+  if (r.st === 'NOT_FOUND_FLAG') {
+    H += '<div class="icard">' + labelIco('gauge', 'State registration') + vChip(r.st) +
+      '<p class="vkv">No registration under the exact name in the state registry.</p>' +
+      vLink(r.url, 'Open state search') + '</div>';
   }
-  H += '</div>';
-  // v6.21: cruce FMCSA (solo trucking sin DOT; REPORT-ONLY — la
-  // agente decide, el sistema jamas escribe el DOT por su cuenta).
-  var fm = v.fmcsa || null;
-  if (fm && fm.st !== 'NOT_APPLICABLE') {
-    H += '<div class="icard">' + labelIco('gauge', 'FMCSA cross-check') + vChip(fm.st === 'FOUND' ? 'FOUND' : fm.st);
-    if (fm.st === 'FOUND') {
-      H += '<p class="vkv">Lead reports no US DOT, but the federal carrier census shows a possible match:</p>' +
-        (fm.hits || []).map(function(h){
-          return '<p class="vkv"><b>DOT ' + esc(h.dot) + '</b> \u00b7 ' + esc(h.nm) +
-            ' <span class="achip">matched by: ' + esc((h.by || []).join(', ')) + '</span></p>';
-        }).join('') +
-        '<p class="ocap" style="margin:8px 0 0">Automated cross-check of the FMCSA census by business name, owner name, and phone. A match here is a lead to confirm, not a confirmed identity.</p>';
-    } else if (fm.st === 'NOT_FOUND') {
-      H += '<p class="vkv">No federal carrier census match by business name, owner name, or phone.</p>';
-    } else {
-      H += '<p class="vkv">Cross-check was not run for this lead.</p>';
-    }
-    H += '</div>';
+  if (w.mono || (w.st === 'INFO' && w.det)) {
+    H += '<div class="icard">' + labelIco('gauge', 'Workers\u2019 comp context') + vChip(w.st) +
+      (w.mono ? '<p class="vkv"><b>Monopolistic state.</b></p>' : '') +
+      (w.det ? '<p class="vkv">' + esc(w.det) + '</p>' : '') + '</div>';
   }
-  var l = v.lic || {};
-  H += '<div class="icard">' + labelIco('gauge', 'Licensing') + vChip(l.st) +
-    (l.det ? '<p class="vkv">' + esc(l.det) + '</p>' : '') + vLink(l.url, 'Open license lookup') + '</div>';
-  var w = v.wc || {};
-  H += '<div class="icard">' + labelIco('gauge', 'Workers\u2019 comp context') + vChip(w.st) +
-    (w.mono ? '<p class="vkv"><b>Monopolistic state.</b></p>' : '') +
-    (w.det ? '<p class="vkv">' + esc(w.det) + '</p>' : '') + '</div>';
-  // v6.24: tarjeta EPA ECHO (motor v24.15, sonda S3) — report-only.
-  var ec = v.echo || null;
-  if (ec && ec.st !== 'NOT_APPLICABLE') {
-    H += '<div class="icard">' + labelIco('gauge', 'EPA environmental records') + vChip(ec.st) +
-      (ec.st === 'FOUND'
-        ? '<p class="vkv"><b>' + ec.n + '</b> regulated facility record(s) matched the business name' +
-          (ec.insp ? ' \u00b7 ' + ec.insp + ' inspection row(s)' : '') +
-          (ec.pen && ec.pen !== '$0' ? ' \u00b7 penalties on file: ' + esc(ec.pen) : '') + '.</p>' +
-          '<p class="ocap">Matched by name in EPA ECHO \u2014 a lead to confirm, not a confirmed identity.</p>'
-        : ec.st === 'NOT_FOUND_EXPECTED'
-        ? '<p class="vkv">No EPA-regulated facility records matched this business name.</p>'
-        : '<p class="vkv">The automated EPA search was not run \u2014 use the manual search.</p>') +
-      vLink(ec.url, 'Open EPA ECHO search') + '</div>';
+  if (l.st === 'INFO' && l.det) {
+    H += '<div class="icard">' + labelIco('gauge', 'Licensing') + vChip(l.st) +
+      '<p class="vkv">' + esc(l.det) + '</p>' + vLink(l.url, 'Open license lookup') + '</div>';
   }
-  var o = v.osha || {};
-  // v6.23 (M1): el texto sigue al ESTADO. Antes DEEPLINK/SKIPPED/
-  // NOT_APPLICABLE (la busqueda NO corrio) afirmaban "no records
-  // matched" — un negativo que nunca se busco. La ausencia solo
-  // significa algo cuando se consulto de verdad.
-  H += '<div class="icard">' + labelIco('gauge', 'OSHA history') + vChip(o.st) +
-    (o.st === 'FOUND' ? '<p class="vkv"><b>' + o.n + '</b> inspection record(s) on file' +
-      (o.last ? ' \u00b7 most recent opened ' + esc(o.last) : '') + '.</p>'
-      : o.st === 'NOT_FOUND_EXPECTED' ? '<p class="vkv">No federal OSHA inspection records matched this business.</p>'
-      : o.st === 'NOT_APPLICABLE' ? '<p class="vkv">Automated OSHA matching was not applicable for this business name \u2014 use the manual search.</p>'
-      : '<p class="vkv">The automated OSHA search was not run for this lead \u2014 use the manual search.</p>') +
-    vLink(o.url, 'Open OSHA search') + '</div>';
+
+  // Other checks — lo callado, compacto, con sus botones manuales.
+  var Q = [], B = [];
+  if (r.st !== 'VERIFIED' && r.st !== 'NOT_FOUND_FLAG') {
+    Q.push('<b>State registration:</b> ' + (r.st === 'NOT_FOUND_EXPECTED'
+      ? 'no exact-name record \u2014 consistent with a new or unregistered trade name'
+      : 'manual lookup for this state'));
+    if (r.url) B.push(vLink(r.url, 'State registry'));
+  }
+  if (!(l.st === 'INFO' && l.det)) {
+    Q.push('<b>Licensing:</b> ' + (l.st === 'NOT_APPLICABLE'
+      ? 'no trade-specific license for this category' : 'manual lookup'));
+    if (l.url) B.push(vLink(l.url, 'License lookup'));
+  }
+  if (o.st !== 'FOUND') {
+    Q.push('<b>OSHA:</b> ' + (o.st === 'NOT_FOUND_EXPECTED'
+      ? 'no inspection records matched' : 'not run \u2014 manual search available'));
+    if (o.url) B.push(vLink(o.url, 'OSHA search'));
+  }
+  if (ec && ec.st !== 'FOUND' && ec.st !== 'NOT_APPLICABLE') {
+    Q.push('<b>EPA:</b> ' + (ec.st === 'NOT_FOUND_EXPECTED'
+      ? 'no regulated-facility records matched' : 'not run \u2014 manual search available'));
+    if (ec.url) B.push(vLink(ec.url, 'EPA ECHO'));
+  }
+  if (fm && fm.st === 'NOT_FOUND')
+    Q.push('<b>FMCSA:</b> no carrier census match by name, owner, or phone');
+  if (Q.length) {
+    H += '<div class="icard">' + labelIco('gauge', 'Other checks') +
+      Q.map(function(q){ return '<p class="vkv" style="margin:4px 0">' + q + '</p>'; }).join('') +
+      (B.length ? '<div style="margin-top:8px">' + B.join(' ') + '</div>' : '') + '</div>';
+  }
+
+  // UNA sola leyenda para todo el tab.
+  H += '<p class="ocap" style="margin:10px 4px 0">Automated findings from public sources, graded by hard keys (2+ keys = strong, 1 = possible). Findings are context for the call, never a judgment.</p>';
   return H;
 }
 
@@ -2246,10 +2292,13 @@ function vTabFingHTML(v){
   var p = v.ops || {};
   H += '<div class="icard">' + labelIco('gauge', 'Operations observed publicly') + vChip(p.st);
   if (p.st === 'OBSERVED') {
-    if ((p.obs || []).length)
+    // v6.25: los servicios viven en su match (dueno de la evidencia);
+    // chips sueltos SOLO para celdas viejas sin matches. Direccion
+    // solo si trae numero de calle (sin numero no verifica nada).
+    if (!(p.matches || []).length && (p.obs || []).length)
       H += '<div class="achips" style="margin-top:8px">' + p.obs.map(function(x){
         return '<span class="achip ok">' + esc(x) + '</span>'; }).join('') + '</div>';
-    if (p.addr_seen) H += '<p class="vkv">Address seen publicly: ' + esc(p.addr_seen) +
+    if (p.addr_seen && /^\s*\d+/.test(String(p.addr_seen))) H += '<p class="vkv">Address seen publicly: ' + esc(p.addr_seen) +
       (p.addr_match === 'match' ? ' <span class="achip ok">Matches lead</span>' :
        p.addr_match === 'differs' ? ' <span class="achip warn">Differs from lead</span>' : '') + '</p>';
     if (p.web && p.web.reviews_signal) H += '<p class="vkv">Reviews signal: ' + esc(p.web.reviews_signal) + '</p>';
@@ -2263,7 +2312,10 @@ function vTabFingHTML(v){
           '<span class="achip ' + (fuerte ? 'ok' : 'warn') + '">' +
           (fuerte ? 'Strong match' : 'Possible match') + '</span> ' +
           '<span class="achip">matched by: ' + esc((m.keys || []).join(' + ')) + '</span>' +
-          ((m.obs || []).length ? '<br>' + esc(m.obs.join(' \u00b7 ')) : '') + '</p>';
+          (m.coh === 'match' ? ' <span class="achip ok">Matches declared line</span>' :
+           m.coh === 'differs' ? ' <span class="achip warn">Differs from declared line</span>' : '') +
+          ((m.obs || []).length ? '<br>' + esc(m.obs.join(' \u00b7 ')) : '') +
+          (m.rev ? '<br>Reviews: ' + esc(m.rev) : '') + '</p>';
       }).join('') +
       '<p class="ocap" style="margin:8px 0 0">Matches are graded by hard keys (2+ keys = strong, 1 = possible). A possible match is a lead to confirm, not a confirmed identity.</p>';
     } else if ((p.notes || []).length) {
