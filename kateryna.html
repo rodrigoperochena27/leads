@@ -8,7 +8,9 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.7 (kateryna.html) — fork 1:1 de index.html
+   KATERYNA LEAD PANEL v1.8 (kateryna.html) — fork 1:1 de index.html
+   v6.26: hero distingue SKIPPED de NOT_FOUND (espejo de index
+   v6.26, M4 de la auditoria). Contrato api=save intacto.
    v6.25: rediseno hallazgos-primero (espejo de index v6.25).
    v6.24 (motor v24.15): matches del cruce + tarjeta EPA ECHO
    (espejo de index v6.24).
@@ -2218,9 +2220,14 @@ function vTabVerifyHTML(v){
   }
   var srcs = ((v.ops && v.ops.links) || []).slice(0, 2)
     .map(function(L){ return vLink(L.u, L.t ? ('Source: ' + L.t).slice(0, 60) : 'Source'); }).join('');
+  // v6.26 (M4, leccion OSHA v6.23): el hero distingue "no corrio"
+  // (SKIPPED) de "corrio y no matcheo" (NOT_FOUND) — un no-corrido
+  // jamas se pinta como resultado negativo.
   H += '<div class="icard">' + labelIco('gauge', 'What we found') +
     (F.length ? F.join('') + srcs
-      : '<p class="vkv">Nothing in public sources matched this business\u2019s hard keys (phone, street number, name). This is context, not a conclusion \u2014 social-media-only presence is often invisible here.</p>') +
+      : (v.ops && v.ops.st === 'SKIPPED'
+        ? '<p class="vkv">The automated search could not run for this lead \u2014 nothing was searched, so this is not a finding.</p>'
+        : '<p class="vkv">Nothing in public sources matched this business\u2019s hard keys (phone, street number, name). This is context, not a conclusion \u2014 social-media-only presence is often invisible here.</p>')) +
     '</div>';
 
   // AI summary — solo si trae bullets.
