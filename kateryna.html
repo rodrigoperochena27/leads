@@ -8,7 +8,11 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
-   KATERYNA LEAD PANEL v1.8 (kateryna.html) — fork 1:1 de index.html
+   KATERYNA LEAD PANEL v2.0 (kateryna.html) — fork 1:1 de index.html
+   v6.28: EXTRA FEE en Sold + prefetch + perf log (espejo de index
+   v6.28; contrato api=save re-congelado con hash nuevo).
+   v6.27: tap-to-copy en Lead details + reloj local del cliente
+   (espejo de index v6.27). Contrato api=save intacto.
    v6.26: hero distingue SKIPPED de NOT_FOUND (espejo de index
    v6.26, M4 de la auditoria). Contrato api=save intacto.
    v6.25: rediseno hallazgos-primero (espejo de index v6.25).
@@ -603,6 +607,12 @@ textarea{height:62px;resize:vertical}
 /* v6.18 (Fase 4D): bullets de talking points */
 .tpul{margin:4px 0 0;padding-left:17px}
 .tpul li{font-size:12.5px;font-weight:600;color:#17233b;margin:4px 0;line-height:1.35}
+/* v6.27: tap-to-copy en Lead details + reloj del cliente */
+.dets .drow,details.card .drow{cursor:pointer}
+.dets .drow:active,details.card .drow:active{background:#f2f4f7}
+.drow.tzrow{cursor:default}
+.copytoast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);background:#101828;color:#fff;padding:9px 16px;border-radius:999px;font-size:13.5px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:9999}
+.copytoast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .vfind{padding:10px 0;border-bottom:1px solid #eef0f4}
 .vfind:last-of-type{border-bottom:0}
 /* v6.2: filas y chips del tab Carrier */
@@ -938,6 +948,7 @@ function cargarLista(render){
       }
       LISTA = d.leads || [];
       try { localStorage.setItem('jl_lista_v1', JSON.stringify(LISTA)); } catch (e) {}
+      prefetchDetalles(); // v6.28: los proximos opens salen del cache
       if (vistaActual === 'lista') pintarLista(render);
     })
     .catch(function(){
@@ -2022,6 +2033,116 @@ function cuerpoCarrier(ins){
 // Description, pedido de Rodrigo).
 // v6.6: orden final decidido por Rodrigo — Contact arriba, Coverage
 // answers al cierre. NAICS/SIC sigue primero en Business profile.
+// == v6.27: RELOJ LOCAL DEL CLIENTE + TAP-TO-COPY ==
+// Zona derivada del ESTADO en el Address (formato canonico del
+// motor: "..., Ciudad, Estado ZIP"). Estados partidos (FL/TX/KY/TN/
+// ID/OR/ND/SD/NE/KS/MI/IN) usan la zona MAYORITARIA — aproximacion
+// documentada; el objetivo es "puedo llamar ya o es muy temprano".
+var TZ_ZONAS = {
+  ET:{tz:'America/New_York', n:'Eastern'},
+  CT:{tz:'America/Chicago', n:'Central'},
+  MT:{tz:'America/Denver', n:'Mountain'},
+  AZ:{tz:'America/Phoenix', n:'Arizona (no DST)'},
+  PT:{tz:'America/Los_Angeles', n:'Pacific'},
+  AK:{tz:'America/Anchorage', n:'Alaska'},
+  HI:{tz:'Pacific/Honolulu', n:'Hawaii'}};
+var TZ_ESTADO = {
+  CONNECTICUT:'ET', DELAWARE:'ET', 'DISTRICT OF COLUMBIA':'ET', FLORIDA:'ET',
+  GEORGIA:'ET', INDIANA:'ET', KENTUCKY:'ET', MAINE:'ET', MARYLAND:'ET',
+  MASSACHUSETTS:'ET', MICHIGAN:'ET', 'NEW HAMPSHIRE':'ET', 'NEW JERSEY':'ET',
+  'NEW YORK':'ET', 'NORTH CAROLINA':'ET', OHIO:'ET', PENNSYLVANIA:'ET',
+  'RHODE ISLAND':'ET', 'SOUTH CAROLINA':'ET', VERMONT:'ET', VIRGINIA:'ET',
+  'WEST VIRGINIA':'ET',
+  ALABAMA:'CT', ARKANSAS:'CT', ILLINOIS:'CT', IOWA:'CT', KANSAS:'CT',
+  LOUISIANA:'CT', MINNESOTA:'CT', MISSISSIPPI:'CT', MISSOURI:'CT',
+  NEBRASKA:'CT', 'NORTH DAKOTA':'CT', OKLAHOMA:'CT', 'SOUTH DAKOTA':'CT',
+  TENNESSEE:'CT', TEXAS:'CT', WISCONSIN:'CT',
+  COLORADO:'MT', IDAHO:'MT', MONTANA:'MT', 'NEW MEXICO':'MT', UTAH:'MT',
+  WYOMING:'MT', ARIZONA:'AZ',
+  CALIFORNIA:'PT', NEVADA:'PT', OREGON:'PT', WASHINGTON:'PT',
+  ALASKA:'AK', HAWAII:'HI'};
+var TZ_ABREV = {AL:'ALABAMA',AK:'ALASKA',AZ:'ARIZONA',AR:'ARKANSAS',
+  CA:'CALIFORNIA',CO:'COLORADO',CT:'CONNECTICUT',DE:'DELAWARE',
+  DC:'DISTRICT OF COLUMBIA',FL:'FLORIDA',GA:'GEORGIA',HI:'HAWAII',ID:'IDAHO',
+  IL:'ILLINOIS',IN:'INDIANA',IA:'IOWA',KS:'KANSAS',KY:'KENTUCKY',LA:'LOUISIANA',
+  ME:'MAINE',MD:'MARYLAND',MA:'MASSACHUSETTS',MI:'MICHIGAN',MN:'MINNESOTA',
+  MS:'MISSISSIPPI',MO:'MISSOURI',MT:'MONTANA',NE:'NEBRASKA',NV:'NEVADA',
+  NH:'NEW HAMPSHIRE',NJ:'NEW JERSEY',NM:'NEW MEXICO',NY:'NEW YORK',
+  NC:'NORTH CAROLINA',ND:'NORTH DAKOTA',OH:'OHIO',OK:'OKLAHOMA',OR:'OREGON',
+  PA:'PENNSYLVANIA',RI:'RHODE ISLAND',SC:'SOUTH CAROLINA',SD:'SOUTH DAKOTA',
+  TN:'TENNESSEE',TX:'TEXAS',UT:'UTAH',VT:'VERMONT',VA:'VIRGINIA',
+  WA:'WASHINGTON',WV:'WEST VIRGINIA',WI:'WISCONSIN',WY:'WYOMING'};
+var CLIENT_TZ = null;
+function zonaDeDetalles(details){
+  var addr = '';
+  (details || []).forEach(function(x){
+    if (String(x[0] || '').toLowerCase().trim() === 'address') addr = String(x[1] || '');
+  });
+  if (!addr) return null;
+  var cola = addr.split(',').pop() || '';
+  var sinZip = cola.replace(/\b\d{5}(?:-\d{4})?\b/g, '').trim();
+  var nombre = sinZip.replace(/[^A-Za-z ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
+  var llave = TZ_ESTADO[nombre] || TZ_ESTADO[TZ_ABREV[nombre] || ''] || null;
+  return llave ? TZ_ZONAS[llave] : null;
+}
+function filaReloj(z){
+  if (!z) return '';
+  return '<div class="drow tzrow"><span>Client local time</span>' +
+    '<b><span class="cclock" data-tz="' + esc(z.tz) + '">--:--:--</span> \u00b7 ' + esc(z.n) + '</b></div>';
+}
+setInterval(function(){
+  var els = document.querySelectorAll('.cclock');
+  if (!els.length) return;
+  Array.prototype.forEach.call(els, function(el){
+    try {
+      el.textContent = new Intl.DateTimeFormat('en-US',
+        {hour:'numeric', minute:'2-digit', second:'2-digit', hour12:true,
+         timeZone: el.getAttribute('data-tz')}).format(new Date());
+    } catch (e) { el.textContent = ''; }
+  });
+}, 1000);
+// Tap en una fila de Lead details = copiar el VALOR. Los links
+// mailto:/tel: conservan su accion; la fila del reloj no copia.
+function copiarLegacy(txt){
+  var ta = document.createElement('textarea');
+  ta.value = txt; ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+}
+function copiarTexto(txt){
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(toastCopiado,
+      function(){ copiarLegacy(txt); toastCopiado(); });
+  } else { copiarLegacy(txt); toastCopiado(); }
+}
+var _toastT = null;
+function toastCopiado(){
+  var el = document.getElementById('copytoast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'copytoast'; el.className = 'copytoast';
+    el.textContent = 'Copied to clipboard';
+    document.body.appendChild(el);
+  }
+  el.classList.add('show');
+  clearTimeout(_toastT);
+  _toastT = setTimeout(function(){ el.classList.remove('show'); }, 1400);
+}
+document.addEventListener('click', function(ev){
+  var el = ev.target;
+  var row = el.closest ? el.closest('.drow') : null;
+  if (!row) return;
+  if (!row.closest('.dets') && !row.closest('details.card')) return;
+  if (row.classList.contains('tzrow')) return;
+  if (el.closest('a')) return;
+  var b = row.querySelector('b, .pv');
+  var txt = b ? String(b.textContent || '').trim() : '';
+  if (!txt) return;
+  copiarTexto(txt);
+});
+
 var GRUPOS_DET = [
   ['Contact', ['email','address','phone']],
   ['Business profile', ['naics / sic','description','category','business type','years in business','owner experience']],
@@ -2413,6 +2534,37 @@ function filaSeguroDetalle(d){
     '<span class="ichev">&#8250;</span></button>';
 }
 
+// v6.28 (velocidad): tras pintar la lista, los detalles de los
+// primeros leads SIN cache se piden en segundo plano y quedan en
+// localStorage — abrirlos despues pinta al instante (mecanismo
+// cache-first de v6.6). api=lead NO registra aperturas (v23.3), asi
+// que el prefetch no contamina metricas. Escalonado 350ms.
+function prefetchDetalles(){
+  try {
+    var cand = [];
+    for (var i = 0; i < LISTA.length && cand.length < 6; i++) {
+      var l = LISTA[i];
+      if (!l || !l.id || !l.t) continue;
+      var hay = null;
+      try { hay = localStorage.getItem('jl_lead_v1_' + l.id); } catch (e) {}
+      if (!hay) cand.push(l);
+    }
+    var k = 0;
+    (function uno(){
+      if (k >= cand.length) return;
+      var l = cand[k++];
+      fetch(API + '?api=lead&id=' + encodeURIComponent(l.id) + '&t=' + encodeURIComponent(l.t) +
+        (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d && d.ok) { try { localStorage.setItem('jl_lead_v1_' + l.id, JSON.stringify(d)); } catch (e) {} }
+        })
+        .catch(function(){})
+        .then(function(){ setTimeout(uno, 350); });
+    })();
+  } catch (e) {}
+}
+
 function verDetalle(id, t, desdeLista){
   // v5.4: si el gesto humano ya ocurrió (p. ej. tap en la lista),
   // registrar la apertura al entrar al detalle.
@@ -2487,6 +2639,7 @@ function cargarDetalle(){
       if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
       // v6.6: guardar cache y re-renderizar SOLO si la data cambio y
       // la agente no esta a mitad de una seleccion (sel === null).
+      if (d && d.ms) { try { console.log('[perf] api=lead server ' + d.ms + 'ms'); } catch (eP) {} } // v6.28
       var igual = false;
       try { igual = JSON.stringify(LEAD) === JSON.stringify(d); } catch (e) {}
       try { localStorage.setItem('jl_lead_v1_' + ID, JSON.stringify(d)); } catch (e) {}
@@ -2519,6 +2672,7 @@ function render(){
   var actRows = [];
   if (j.premium) actRows.push('<div class="drow"><span>Policy premium</span><b>$' + esc(j.premium) + '</b></div>');
   if (j.agent_comm) actRows.push('<div class="drow"><span>Agent commission</span><b>' + esc(j.agent_comm) + '%</b></div>');
+  if (j.fee) actRows.push('<div class="drow"><span>Extra fee</span><b>$' + esc(j.fee) + '</b></div>'); // v6.28
   if (j.term) actRows.push('<div class="drow"><span>Policy term</span><b>' + esc(j.term) + ' months</b></div>');
   if (j.loss_reason) actRows.push('<div class="drow"><span>Loss reason</span><b>' + esc(j.loss_reason) + '</b></div>');
   var actNotas = (j.notes && j.notes.length)
@@ -2533,16 +2687,18 @@ function render(){
   // v6.4: Full details agrupado. Movil = una tarjeta colapsable con
   // subtitulos (flujo original). Desktop = una tarjeta por grupo en
   // la sidebar de referencia.
+  CLIENT_TZ = zonaDeDetalles(d.details); // v6.27: reloj del cliente
+  var filaTz = filaReloj(CLIENT_TZ);
   var grupos = grupoDetalles(d.details || []);
   var det = '', detCards = '';
   if (grupos.length) {
-    det = '<details class="card"><summary>Full details</summary><div class="inner">' +
+    det = '<details class="card"><summary>Full details</summary><div class="inner">' + filaTz +
       grupos.map(function(g){
         return '<p class="gsub">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('');
       }).join('') + '</div></details>';
     // v6.5: UNA tarjeta seccionada, sin scroll interno (contenido
     // oculto = trampa; todo visible, filas compactas).
-    detCards = '<div class="card dets"><p class="label">Lead details</p>' +
+    detCards = '<div class="card dets"><p class="label">Lead details</p>' + filaTz +
       grupos.map(function(g){
         return '<p class="gsub">' + esc(g.t) + '</p>' + g.f.map(filaDet).join('');
       }).join('') + '</div>';
@@ -2742,6 +2898,8 @@ function render(){
         '<input id="sold_premium" type="number" step="0.01" min="0.01" inputmode="decimal" placeholder="0.00">' +
         '<label>Agent commission (%) <span class="opt">optional</span></label>' +
         '<input id="sold_comm" type="number" step="0.01" min="0.01" max="100" inputmode="decimal" placeholder="%">' +
+        '<label>Extra fee ($) <span class="opt">optional</span></label>' +
+        '<input id="sold_fee" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">' +
         '<label>Policy term <span class="req">required</span></label>' +
         '<div class="grid" id="term-grid" style="grid-template-columns:1fr 1fr;gap:8px">' +
           '<button type="button" class="st term-btn" data-term="6" style="--c:#2563eb"><span class="dot"></span>6 months</button>' +
@@ -2783,6 +2941,7 @@ function render(){
     if (sel === 'sold') {
       if (j.premium) document.getElementById('sold_premium').value = j.premium;
       if (j.agent_comm) document.getElementById('sold_comm').value = j.agent_comm;
+      if (j.fee) document.getElementById('sold_fee').value = j.fee; // v6.28
       var termBtns = sh.querySelectorAll('.term-btn');
       termBtns.forEach(function(tb){
         tb.classList.toggle('sel', parseInt(tb.getAttribute('data-term'), 10) === termSel);
@@ -2809,8 +2968,12 @@ function render(){
       var sc = scRaw ? parseFloat(scRaw) : null;
       if (!(sp > 0)) { fallo('Policy premium is required (greater than 0).'); return; }
       if (sc !== null && !(sc > 0 && sc <= 100)) { fallo('Agent commission must be a percentage between 0 and 100, or leave it empty.'); return; }
+      var sfRaw = document.getElementById('sold_fee').value;
+      var sf = sfRaw ? parseFloat(sfRaw) : null;
+      if (sf !== null && !(sf >= 0)) { fallo('Extra fee must be 0 or greater, or leave it empty.'); return; }
       params.sold_premium = sp;
       if (sc !== null) params.sold_comm = sc;
+      if (sf !== null) params.sold_fee = sf; // v6.28: contrato re-congelado (autorizado)
       params.sold_term = termSel;
     }
     if (sel === 'quoted') params.quoted_premium = document.getElementById('quoted_premium').value;
