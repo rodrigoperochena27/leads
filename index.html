@@ -9,6 +9,11 @@
 <style>
 /* ============================================================
    LEAD PANEL v6.18 — TALKING POINTS (motor v24.11, Fase 4D).
+   v6.26 (auditoria en frio v24.15.x, M4): el hero WHAT WE FOUND
+   distingue SKIPPED ("could not run \u2014 not a finding") de
+   NOT_FOUND ("nothing matched") — leccion OSHA de v6.23 aplicada
+   al hero. Contrato api=save intacto; modulo Verify identico al
+   de kateryna v1.8.
    v6.25 (feedback Rodrigo, lead RoaPrint): rediseno hallazgos-
    primero. Hero WHAT WE FOUND: cada hallazgo real como oracion
    con evidencia (llaves), coherencia vs declarado, reviews y
@@ -2242,9 +2247,14 @@ function vTabVerifyHTML(v){
   }
   var srcs = ((v.ops && v.ops.links) || []).slice(0, 2)
     .map(function(L){ return vLink(L.u, L.t ? ('Source: ' + L.t).slice(0, 60) : 'Source'); }).join('');
+  // v6.26 (M4, leccion OSHA v6.23): el hero distingue "no corrio"
+  // (SKIPPED) de "corrio y no matcheo" (NOT_FOUND) — un no-corrido
+  // jamas se pinta como resultado negativo.
   H += '<div class="icard">' + labelIco('gauge', 'What we found') +
     (F.length ? F.join('') + srcs
-      : '<p class="vkv">Nothing in public sources matched this business\u2019s hard keys (phone, street number, name). This is context, not a conclusion \u2014 social-media-only presence is often invisible here.</p>') +
+      : (v.ops && v.ops.st === 'SKIPPED'
+        ? '<p class="vkv">The automated search could not run for this lead \u2014 nothing was searched, so this is not a finding.</p>'
+        : '<p class="vkv">Nothing in public sources matched this business\u2019s hard keys (phone, street number, name). This is context, not a conclusion \u2014 social-media-only presence is often invisible here.</p>')) +
     '</div>';
 
   // AI summary — solo si trae bullets.
