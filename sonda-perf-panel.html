@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<!-- ============================================================
+     SONDA PERF PANEL (cliente) — mide lo que el servidor no ve:
+     total percibido = red + arranque en frio + redirect GAS +
+     servidor. servidor = campo ms (motor v24.15.7+).
+     overhead = total - servidor  <- el arranque en frio vive aqui.
+     Uso: subir este archivo al mismo GitHub Pages de los paneles
+     (o abrirlo local), pegar la API exec URL + un id + su t (o adm)
+     y correr 5x lead y 5x list EN CADA panel. Pegar el resultado
+     a Claude. Borrar el archivo al terminar.
+     ============================================================ -->
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sonda Perf Panel</title>
+<style>
+body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f4f5f7;color:#101828;margin:0;padding:18px;max-width:760px}
+h1{font-size:18px}label{display:block;font-size:12.5px;color:#475467;margin:10px 0 3px}
+input{width:100%;box-sizing:border-box;padding:9px;border:1px solid #d0d5dd;border-radius:8px;font-size:14px}
+button{margin:14px 8px 0 0;padding:10px 16px;border:0;border-radius:8px;background:#101828;color:#fff;font-size:14px;cursor:pointer}
+button:disabled{opacity:.5}
+table{border-collapse:collapse;width:100%;margin-top:14px;font-size:13px;background:#fff}
+th,td{border:1px solid #e4e7ec;padding:6px 8px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+#veredicto{margin-top:14px;padding:12px;background:#fff;border:1px solid #e4e7ec;border-radius:8px;font-size:14px;white-space:pre-wrap}
+</style></head><body>
+<h1>Sonda de velocidad del panel</h1>
+<label>API exec URL (la de Apps Script, termina en /exec)</label>
+<input id="api" placeholder="https://script.google.com/macros/s/.../exec">
+<label>Lead id</label><input id="id" placeholder="K037">
+<label>Token t del lead (de su link de panel)</label><input id="t" placeholder="41651d90...">
+<label>adm (opcional, si usas tu link admin)</label><input id="adm">
+<button id="bLead">Medir api=lead x5</button>
+<button id="bList">Medir api=list x5</button>
+<table id="tbl"><thead><tr><th>corrida</th><th>total ms</th><th>servidor ms</th><th>overhead ms</th><th>payload KB</th></tr></thead><tbody></tbody></table>
+<div id="veredicto">Sin datos todavia.</div>
+<script>
+var RES = [];
+function q(x){ return document.getElementById(x); }
+function fila(n, tot, srv, kb){
+  var ov = (srv === null) ? null : (tot - srv);
+  RES.push({tot: tot, srv: srv, ov: ov});
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td>' + n + '</td><td>' + tot + '</td><td>' + (srv === null ? '?' : srv) +
+    '</td><td>' + (ov === null ? '?' : ov) + '</td><td>' + kb + '</td>';
+  q('tbl').tBodies[0].appendChild(tr);
+}
+function mediana(a){
+  if (!a.length) return 0;
+  var b = a.slice().sort(function(x, y){ return x - y; });
+  return b[Math.floor(b.length / 2)];
+}
+function veredicto(){
+  var tots = [], srvs = [], ovs = [];
+  RES.forEach(function(r){
+    tots.push(r.tot);
+    if (r.srv !== null) { srvs.push(r.srv); ovs.push(r.ov); }
+  });
+  var mT = mediana(tots), mS = mediana(srvs), mO = mediana(ovs);
+  var frio = RES.length > 1 ? (RES[0].tot - mediana(tots.slice(1))) : 0;
+  var v = 'Mediana total: ' + mT + 'ms · servidor: ' + mS + 'ms · overhead (red+frio+redirect): ' + mO + 'ms\n';
+  v += 'Costo estimado del arranque en frio (corrida 1 vs resto): ' + (frio > 0 ? frio : 0) + 'ms\n\n';
+  if (mS > mO && mS > 800) v += 'VEREDICTO: el cuello es el SERVIDOR (' + mS + 'ms) — hay tanda 2 de optimizacion de motor.';
+  else if (mO >= mS && mO > 800) v += 'VEREDICTO: el cuello es la INFRAESTRUCTURA (' + mO + 'ms de red + arranque en frio + redirect de Apps Script) — no se arregla con codigo de motor; se mitiga con el prefetch (ya activo en v6.28) y cache-first.';
+  else v += 'VEREDICTO: ambos por debajo de 800ms — si el panel aun se siente lento, el tiempo esta en el RENDER del navegador o en un panel viejo cacheado (verificar v6.28 en el fuente).';
+  q('veredicto').textContent = v;
+}
+function correr(api, n, total){
+  if (n > total) { veredicto(); q('bLead').disabled = q('bList').disabled = false; return; }
+  var url = api + (api.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
+  var t0 = Date.now();
+  fetch(url, {cache: 'no-store'})
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var tot = Date.now() - t0, srv = null;
+      try { var d = JSON.parse(txt); if (d && d.ms !== undefined) srv = d.ms; } catch (e) {}
+      fila(n, tot, srv, Math.round(txt.length / 1024));
+      setTimeout(function(){ correr(api, n + 1, total); }, 400);
+    })
+    .catch(function(e){
+      fila(n, Date.now() - t0, null, 0);
+      q('veredicto').textContent = 'Error de red/CORS: ' + e + ' — si abriste el archivo local y falla, subelo al GitHub Pages de los paneles.';
+      q('bLead').disabled = q('bList').disabled = false;
+    });
+}
+function arrancar(tipo){
+  var api = q('api').value.trim();
+  if (!api) { q('veredicto').textContent = 'Falta la API URL.'; return; }
+  var p = 'api=' + tipo;
+  if (tipo === 'lead') p += '&id=' + encodeURIComponent(q('id').value.trim()) + '&t=' + encodeURIComponent(q('t').value.trim());
+  if (q('adm').value.trim()) p += '&adm=' + encodeURIComponent(q('adm').value.trim());
+  RES = [];
+  q('tbl').tBodies[0].innerHTML = '';
+  q('bLead').disabled = q('bList').disabled = true;
+  q('veredicto').textContent = 'Midiendo 5 corridas de api=' + tipo + '...';
+  correr(api + '?' + p, 1, 5);
+}
+q('bLead').addEventListener('click', function(){ arrancar('lead'); });
+q('bList').addEventListener('click', function(){ arrancar('list'); });
+</script></body></html>
