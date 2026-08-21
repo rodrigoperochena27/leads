@@ -8,6 +8,24 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
+   v2.2 — FIX SMS MSG2 EN PRIMER TAP (incidente Kateryna/Erick)
+   + MINA DESACTIVADA (lead obsoleto en el esqueleto). Tres defectos
+   del diseno v6.29 corregidos: (1) smsCount leia el LEAD GLOBAL
+   mientras smsHref usaba el argumento — conteo de un lead, cuerpo de
+   otro; ahora smsCount(l) recibe el lead y cuenta SUS datos. (2) El
+   listener del esqueleto podia pasar el LEAD global OBSOLETO (lead
+   anterior: nombre/cobertura/TELEFONO equivocados) en la ventana de
+   1-2s de carga — ahora exige LEAD.id === l.id o usa la fila de la
+   lista. (3) El flag local se encendia AL TAP para siempre (causa
+   del incidente: tap sin enviar + segundo tap = msg2) — ahora lleva
+   timestamp y vale 10 MINUTOS: su unico trabajo es puentear el cache
+   de 90s; despues manda el servidor. Ademas el conteo autoritativo
+   viene del motor (api=lead sms:n, v24.15.15) con fallback al regex
+   de notas para payloads cacheados viejos. LIMITACION DOCUMENTADA:
+   se cuentan TAPS, no envios — la web no ve el boton enviar de
+   Mensajes. Contrato api=save INTACTO.
+   ============================================================ */
+/* ============================================================
    KATERYNA LEAD PANEL v2.1 — BOTON TEXT / SMS PRECARGADO, espejo
    1:1 de index v6.29 (motor v24.15.12). Unica diferencia: el SMS
    se firma "soy Kateryna". Ver el changelog completo en index
@@ -1089,7 +1107,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v2.1</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v2.2</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1182,20 +1200,32 @@ function registrarLlamada(){
 // registrarSms espeja a registrarLlamada: fire-and-forget, jamas
 // bloquea la redireccion; ADMIN no registra nada.
 // ============================================================
-function smsCount(){
+function smsCount(l){ // v2.2: recibe EL lead — jamas el global
+  l = l || {};
   var c = 0;
+  if (typeof l.sms === 'number') c = l.sms; // autoritativo del motor (v24.15.15)
+  else {
+    try {
+      var ns = (l.jenny && l.jenny.notes) || [];
+      for (var i = 0; i < ns.length; i++) if (/SMS sent/i.test(ns[i])) c++;
+    } catch (e) {}
+  }
+  // Flag local: SOLO puente del cache de 90s — vigencia 10 minutos.
+  // Formato {t:ms}; los '1' eternos de v6.29 quedan invalidos solos.
   try {
-    var ns = (LEAD && LEAD.jenny && LEAD.jenny.notes) || [];
-    for (var i = 0; i < ns.length; i++) if (/SMS sent/i.test(ns[i])) c++;
+    if (!c) {
+      var t = 0;
+      try { t = (JSON.parse(localStorage.getItem('jl_sms_' + (l.id || ID))) || {}).t || 0; } catch (e2) {}
+      if (t && (Date.now() - t) < 600000) c = 1;
+    }
   } catch (e) {}
-  try { if (!c && localStorage.getItem('jl_sms_' + ID)) c = 1; } catch (e) {}
   return c;
 }
 function smsHref(l){
   l = l || {};
   var nombre = String(l.name || '').trim().split(/\s+/)[0] || '';
   var linea = (l.coverages && l.coverages.length) ? String(l.coverages[0]) : 'seguro comercial';
-  var body = smsCount()
+  var body = smsCount(l)
     ? nombre + ', soy Kateryna otra vez. Le volv\u00ed a llamar por su cotizaci\u00f3n de ' + linea +
       ' y no tuve \u00e9xito. Espero su respuesta, feliz de asistirle!'
     : 'Hola ' + nombre + ', soy Kateryna, su agente asignada para su cotizaci\u00f3n de ' + linea +
@@ -1207,7 +1237,7 @@ function registrarSms(){
   if (ADM) return;
   if (!humano) return;
   // flag local SOLO cuando de verdad se registra (flag = nota en el Sheet)
-  try { localStorage.setItem('jl_sms_' + ID, '1'); } catch (e) {}
+  try { localStorage.setItem('jl_sms_' + ID, JSON.stringify({t: Date.now()})); } catch (e) {}
   try {
     fetch(API + '?api=sms&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
@@ -2678,7 +2708,7 @@ function pintarEsqueleto(l){
   // los datos de la lista (LEAD aun no llega).
   var ssk = document.getElementById('btn-sms-sk');
   if (ssk) ssk.addEventListener('click', function(){
-    this.href = smsHref(LEAD && LEAD.ok ? LEAD : l);
+    this.href = smsHref(LEAD && LEAD.ok && LEAD.id === l.id ? LEAD : l); // v2.2: jamas datos de otro lead
     registrarSms();
   });
 }
