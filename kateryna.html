@@ -8,6 +8,15 @@
 <title>Lead Panel — Kateryna</title>
 <style>
 /* ============================================================
+   KATERYNA LEAD PANEL v2.1 — BOTON TEXT / SMS PRECARGADO, espejo
+   1:1 de index v6.29 (motor v24.15.12). Unica diferencia: el SMS
+   se firma "soy Kateryna". Ver el changelog completo en index
+   v6.29: boton Text (sms: con body precargado, iOS & / Android ?),
+   mensaje 1 vs 2 por conteo de /SMS sent/i en j.notes + flag local,
+   api=sms fire-and-forget, boton "Send a text instead" en el prompt
+   post-llamada, acciones a 3 columnas. Contrato api=save INTACTO.
+   ============================================================
+/* ============================================================
    KATERYNA LEAD PANEL v2.0 (kateryna.html) — fork 1:1 de index.html
    v6.28: EXTRA FEE en Sold + prefetch + perf log (espejo de index
    v6.28; contrato api=save re-congelado con hash nuevo).
@@ -403,8 +412,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 /* ── Acciones primarias (encimadas al header del detalle) ── */
 .acts{display:flex;gap:10px;margin:-32px 16px 14px}
-.act{flex:1;display:block;text-align:center;padding:15px;border-radius:14px;text-decoration:none;font-weight:800;font-size:15.5px;box-shadow:0 4px 14px rgba(23,35,59,.18)}
+.act{flex:1;display:block;text-align:center;padding:15px 4px;border-radius:14px;text-decoration:none;font-weight:800;font-size:14.5px;white-space:nowrap;box-shadow:0 4px 14px rgba(23,35,59,.18)} /* v6.29: 3 botones */
 .act.call{background:#fff;color:var(--ink)}
+.act.sms{background:#2563eb;color:#fff} /* v6.29 */
 .act.wa{background:var(--wa);color:#fff}
 
 .wrap{padding:0 16px;background:var(--paper)}
@@ -497,6 +507,7 @@ textarea{height:62px;resize:vertical}
 .cp-yes{background:#12805c;color:#fff}
 .cp-no{background:#eef0f4;color:#101828}
 .cp-later{display:block;width:100%;margin-top:8px;background:none;border:0;color:var(--sub);font-size:13px;font-weight:600;cursor:pointer;padding:6px}
+.cp-sms{display:block;width:100%;margin-top:8px;background:#2563eb;color:#fff} /* v6.29 */
 
 /* ── LISTA ── */
 .searchwrap{margin:-26px 16px 12px;position:relative}
@@ -751,7 +762,7 @@ textarea{height:62px;resize:vertical}
   .hero.det-hero .hinner{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}
   .hero.det-hero .hmain{min-width:0}
   .hacts{display:flex;gap:10px;flex:none;margin-bottom:2px}
-  .hacts .act{flex:none;width:180px;padding:14px 0;text-align:center}
+  .hacts .act{flex:none;width:140px;padding:14px 0;text-align:center} /* v6.29: 3 botones */
   /* v6.5: sidebar de referencia a la IZQUIERDA (mas ancha), flujo a la derecha */
   .wrap.det{margin-top:16px;display:grid;grid-template-columns:400px minmax(0,1fr);gap:0 16px;align-items:start}
   .wrap.det.solo{display:block;max-width:720px;margin-left:auto;margin-right:auto}
@@ -1078,7 +1089,7 @@ function pintarLista(scrollTop){
       '<div class="searchwrap"><input id="q" type="search" placeholder="Search name, business, phone, ID..." value="' + esc(textoBusqueda) + '"></div>' +
       '<div class="filters">' + chips + '</div>' +
       '<div id="rows">' + cuerpo + '</div>' +
-      '<p class="refresh-note">Updates automatically every minute. · v6.25</p>' +
+      '<p class="refresh-note">Updates automatically every minute. · v2.1</p>' +
     '</div>';
 
   if (scrollTop) window.scrollTo(0, 0);
@@ -1156,6 +1167,49 @@ function registrarLlamada(){
   if (!humano) return;
   try {
     fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+      .catch(function(){});
+  } catch(e){}
+}
+
+// ============================================================
+// v6.29: SMS PRECARGADO. smsCount decide mensaje 1 o 2: cuenta
+// /SMS sent/i en j.notes (el motor la escribe en cada api=sms —
+// servidor como fuente de verdad) con flag local como respaldo
+// mientras el cache (90s) trae notas viejas. smsHref arma el link
+// sms: — iOS separa el body con "&", Android con "?". La linea es
+// coverages[0] (decision Rodrigo: solo la primera; sin coberturas,
+// "seguro comercial"; sin mencionar el negocio — mensaje corto).
+// registrarSms espeja a registrarLlamada: fire-and-forget, jamas
+// bloquea la redireccion; ADMIN no registra nada.
+// ============================================================
+function smsCount(){
+  var c = 0;
+  try {
+    var ns = (LEAD && LEAD.jenny && LEAD.jenny.notes) || [];
+    for (var i = 0; i < ns.length; i++) if (/SMS sent/i.test(ns[i])) c++;
+  } catch (e) {}
+  try { if (!c && localStorage.getItem('jl_sms_' + ID)) c = 1; } catch (e) {}
+  return c;
+}
+function smsHref(l){
+  l = l || {};
+  var nombre = String(l.name || '').trim().split(/\s+/)[0] || '';
+  var linea = (l.coverages && l.coverages.length) ? String(l.coverages[0]) : 'seguro comercial';
+  var body = smsCount()
+    ? nombre + ', soy Kateryna otra vez. Le volv\u00ed a llamar por su cotizaci\u00f3n de ' + linea +
+      ' y no tuve \u00e9xito. Espero su respuesta, feliz de asistirle!'
+    : 'Hola ' + nombre + ', soy Kateryna, su agente asignada para su cotizaci\u00f3n de ' + linea +
+      '. La estoy trabajando en este momento y me faltan unos datos por confirmar para envi\u00e1rsela. A qu\u00e9 hora le puedo llamar?';
+  var sep = /iPhone|iPad|iPod/i.test(navigator.userAgent) ? '&' : '?';
+  return 'sms:+1' + (l.phone10 || '') + sep + 'body=' + encodeURIComponent(body);
+}
+function registrarSms(){
+  if (ADM) return;
+  if (!humano) return;
+  // flag local SOLO cuando de verdad se registra (flag = nota en el Sheet)
+  try { localStorage.setItem('jl_sms_' + ID, '1'); } catch (e) {}
+  try {
+    fetch(API + '?api=sms&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
   } catch(e){}
 }
@@ -2608,6 +2662,7 @@ function pintarEsqueleto(l){
       (chips ? '<div class="chips">' + chips + '</div>' : '');
   var hActs =
       '<a class="act call" id="btn-call-sk" href="tel:+1' + esc(l.phone10) + '">Call</a>' +
+      '<a class="act sms" id="btn-sms-sk" href="#">Text</a>' + // v6.29
       '<a class="act wa" href="https://wa.me/1' + esc(l.phone10) + '">WhatsApp</a>';
   app.innerHTML =
     (eDesk
@@ -2619,6 +2674,13 @@ function pintarEsqueleto(l){
   // v5: un Call desde el esqueleto también cuenta (el detalle aún carga)
   var bsk = document.getElementById('btn-call-sk');
   if (bsk) bsk.addEventListener('click', registrarLlamada);
+  // v6.29: Text desde el esqueleto — href calculado EN el click con
+  // los datos de la lista (LEAD aun no llega).
+  var ssk = document.getElementById('btn-sms-sk');
+  if (ssk) ssk.addEventListener('click', function(){
+    this.href = smsHref(LEAD && LEAD.ok ? LEAD : l);
+    registrarSms();
+  });
 }
 
 function cargarDetalle(){
@@ -2735,6 +2797,7 @@ function render(){
       (esAdmin ? '<p class="biz" style="color:#fbbf24">Admin mode — read only, this visit is not recorded.</p>' : '');
   var actsHtml =
       '<a class="act call" id="btn-call" href="tel:+1' + esc(d.phone10) + '">Call</a>' +
+      '<a class="act sms" id="btn-sms" href="#">Text</a>' + // v6.29
       '<a class="act wa" href="https://wa.me/1' + esc(d.phone10) + '">WhatsApp</a>';
   var hero, cuerpo;
   if (esDesk) {
@@ -2816,6 +2879,14 @@ function render(){
     registrarLlamada(); // v5: conteo + status Called + aviso (motor v23)
   });
 
+  // v6.29: Text — el href se recalcula EN el click (antes de
+  // registrar) para que un segundo tap en la misma vista ya lleve
+  // el mensaje 2. La navegacion usa el href recien puesto.
+  document.getElementById('btn-sms').addEventListener('click', function(){
+    this.href = smsHref(LEAD);
+    registrarSms();
+  });
+
   function pantallaExito(dd){
     try { localStorage.removeItem('jl_lead_v1_' + ID); } catch (e) {} // v6.6: proximo open, fresco
     app.innerHTML =
@@ -2865,10 +2936,19 @@ function render(){
         '<button type="button" class="cp-btn cp-yes" id="cp-yes">✓ Contacted</button>' +
         '<button type="button" class="cp-btn cp-no" id="cp-no">Not reached</button>' +
       '</div>' +
+      '<button type="button" class="cp-btn cp-sms" id="cp-sms">Send a text instead</button>' + // v6.29
       '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
     document.body.appendChild(div);
     document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
     document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
+    // v6.29: cerrar el prompt, registrar el SMS (el motor pone Not
+    // Reached + nota) y redirigir a Mensajes con el texto listo.
+    document.getElementById('cp-sms').onclick = function(){
+      var href = smsHref(LEAD); // ANTES de registrar (mensaje correcto)
+      div.remove();
+      registrarSms();
+      location.href = href;
+    };
     document.getElementById('cp-later').onclick = function(){ div.remove(); };
   }
 
