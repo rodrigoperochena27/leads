@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>Lead Panel</title>
 <style>
+/* Batch 1 candidate — NOT DEPLOYED. Historical version notes below refer to the frozen baseline. */
 /* ============================================================
    v6.30 — FIX SMS MSG2 EN PRIMER TAP (incidente Kateryna/Erick)
    + MINA DESACTIVADA (lead obsoleto en el esqueleto). Tres defectos
@@ -425,7 +426,7 @@
    LEAD PANEL v4.4 — RENDIMIENTO (requiere motor v21.5).
    v4.4: percepción de instantaneidad, sin cambios de flujo:
    - La lista se pinta AL INSTANTE desde la última copia conocida
-     (localStorage 'jl_lista_v1') y se refresca en segundo plano.
+     (localStorage 'hl_lista_v1') y se refresca en segundo plano.
      La copia se borra al cerrar sesión o al vencer la sesión.
    - Al tocar un lead, el encabezado (nombre, negocio, estado,
      Call/WhatsApp) se pinta de inmediato con los datos de la lista;
@@ -449,7 +450,7 @@
    "New leads" y "Everything else" (leads que Jenny abrió y dejó sin
    registrar estado recuperan visibilidad).
    v4.1: MODO ADMIN para Rodrigo — entrar con ?admin=1 (código de 6
-   dígitos a SU correo, sesión 30 días en localStorage 'jl_admin').
+   dígitos a SU correo, sesión 30 días en localStorage 'lm_v2_admin').
    En modo admin: abrir un lead NO registra apertura ni cambia el
    estado (fetch con &adm=), y el detalle es SOLO LECTURA (sin
    botones de estado ni prompt post-llamada). Badge ADMIN visible.
@@ -846,6 +847,29 @@ textarea{height:62px;resize:vertical}
 <div id="app"><div class="spin"></div></div>
 
 <script>
+// Batch 3 candidate: safe outbound URL policy. NOT DEPLOYED.
+function lm3SafeUrl(value){
+  if(typeof value!=='string')return '';
+  const s=value.trim();
+  if(!s||/[\u0000-\u0020\u007f\\<>"']/.test(s)||/%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(s))return '';
+  const m=s.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);if(!m)return '';
+  const scheme=m[1].toLowerCase(),rest=m[2];
+  if(scheme==='http'||scheme==='https'){
+    if(!/^\/\/[^\/?#]+/.test(rest))return '';
+    const host=rest.slice(2).split(/[\/?#]/)[0];
+    if(host.includes('@')||! /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host))return '';
+    const hostname=host.split(':')[0];
+    if(hostname.length>253||hostname.split('.').some(label=>! /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)))return '';
+    if(/^\d+(?:\.\d+){3}$/.test(hostname)&&hostname.split('.').some(n=>Number(n)>255))return '';
+    if(/:\d+$/.test(host)&&Number(host.match(/:(\d+)$/)[1])>65535)return '';
+  }else if(scheme==='tel'||scheme==='sms'){
+    if(!/^\+?[0-9().-]+(?:[?&]body=[^#]*)?$/.test(rest))return '';
+  }else if(scheme==='mailto'){
+    if(!/^[^@/?#]+@[^@/?#]+(?:\?[^#]*)?$/.test(rest))return '';
+  }else return '';
+  return scheme+':'+rest;
+}
+
 // ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
 var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
 // ===========================================================
@@ -875,9 +899,86 @@ var FILTROS = [
   ['closed','Closed', ['Declined','Dead / Lost']]
 ];
 
+// Batch 1: tracker/role-scoped storage. Legacy credentials are never imported.
+var PANEL = 'j', STORE = 'lm_v2_' + PANEL + ':';
+var epocaVista = 0, serieRender = 0, serieLista = 0;
+var contextoAutorizado = null, autorizados = {}, autorizadoHasta = 0;
+function contextoPanel(){ return ADM ? 'admin:' + ADM : SES ? 'agent:' + SES : 'link'; }
+function idDelPanel(id){ return (/^(?:L|T)\d/).test(String(id || '')); }
+function capturarVista(){ return {epoca:epocaVista, id:ID, t:T, contexto:contextoPanel()}; }
+function vistaVigente(q){ return vistaActual === 'detalle' && q.epoca === epocaVista &&
+  q.id === ID && q.t === T && q.contexto === contextoPanel() &&
+  (q.render === undefined || q.render === serieRender); }
+// Pending reads only; never store a settled response or an authorization decision.
+var epocaDatos = 0, lecturasEnCurso = Object.create(null);
+function invalidarLecturas(){ epocaDatos++; lecturasEnCurso = Object.create(null); }
+function panelFetch(url, options){
+  var api = new URLSearchParams(String(url).split('?')[1] || '').get('api');
+  var lectura = (!options || !options.method || options.method === 'GET') &&
+    ['lead','h_lead','list','h_list'].indexOf(api) >= 0;
+  if (!lectura) { invalidarLecturas(); return fetch(url, options); }
+  // URL includes tracker, lead ID and token. STORE isolates the panel role.
+  // epocaDatos fences mutations/logout; each consumer retains its own epocaVista.
+  var key = JSON.stringify([STORE, contextoPanel(), epocaDatos, epocaVista, String(url)]);
+  var map = lecturasEnCurso, p = map[key];
+  if (!p) {
+    p = fetch(url, options).then(function(r){ return r.json(); });
+    map[key] = p;
+    var limpiar = function(){ if (map[key] === p) delete map[key]; };
+    p.then(limpiar, limpiar);
+  }
+  // Consumers may enrich LEAD locally; do not share mutable parsed objects.
+  return p.then(function(d){ return {json:function(){ return Promise.resolve(JSON.parse(JSON.stringify(d))); }}; });
+}
+// Execution/view fences remain independent of response telemetry.
+var promptLlamadaActual = null;
+function proyeccionDetalle(d){
+  if (!d) return null;
+  var v = {};
+  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms') v[k] = d[k]; });
+  return JSON.stringify(v);
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible' && promptLlamadaActual) promptLlamadaActual();
+});
+window.addEventListener('pageshow', function(){ if (promptLlamadaActual) promptLlamadaActual(); });
+function nuevaVista(v){
+  promptLlamadaActual = null;
+  epocaVista++; serieRender++; vistaActual = v; LEAD = null; sel = null; selLabel = '';
+  if (typeof cerrarSeguro === 'function') cerrarSeguro();
+  if (typeof cerrarVerify === 'function') cerrarVerify();
+  document.querySelectorAll('.ov,.sheet,.callprompt').forEach(function(el){ el.remove(); });
+}
+function limpiarEstadoPanel(){
+  invalidarLecturas();
+  promptLlamadaActual = null;
+  LISTA = []; contextoAutorizado = null; autorizados = {}; autorizadoHasta = 0;
+  epocaVista++; serieLista++; LEAD = null; sel = null;
+  try { for (var i = localStorage.length - 1; i >= 0; i--) {
+    var k = localStorage.key(i); if (k && k.indexOf(STORE) === 0 && k !== STORE + 'session') localStorage.removeItem(k);
+  } } catch(e) {}
+}
+function autorizarLista(leads){
+  if (!Array.isArray(leads) || leads.some(function(l){ return !l || !idDelPanel(l.id) || !l.t; })) return false;
+  contextoAutorizado = contextoPanel(); autorizadoHasta = Date.now() + 90000; autorizados = {};
+  leads.forEach(function(l){ autorizados[l.id] = l.t; }); return true;
+}
+function cacheDetalleLeer(id,t){
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta || autorizados[id] !== t) return null;
+  try { var c = JSON.parse(localStorage.getItem(STORE + 'lead:' + id) || 'null');
+    if (c && c.contexto === contextoPanel() && c.t === t && c.hasta > Date.now() &&
+        c.data && c.data.ok && c.data.id === id && !!c.data.admin === !!ADM) return c.data;
+  } catch(e) {} return null;
+}
+function cacheDetalleGuardar(id,t,data){
+  if (!idDelPanel(id) || !data || !data.ok || data.id !== id || !!data.admin !== !!ADM) return;
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta || autorizados[id] !== t) return;
+  try { localStorage.setItem(STORE + 'lead:' + id, JSON.stringify({contexto:contextoPanel(),t:t,hasta:Date.now()+90000,data:data})); } catch(e) {}
+}
+
 var SES = null, ADM = null;
-try { SES = localStorage.getItem('jl_session') || null; } catch (e) {}
-try { ADM = localStorage.getItem('jl_admin') || null; } catch (e) {}
+try { SES = localStorage.getItem(STORE + 'session') || null; } catch (e) {}
+try { ADM = localStorage.getItem('lm_v2_admin') || null; } catch (e) {}
 var LISTA = [];            // cache de api=list
 var filtroActivo = 'all';
 var textoBusqueda = '';
@@ -892,10 +993,18 @@ function pillEstado(st, extra){
   return '<span class="' + (extra || 'pill') + '" style="background:' + (COLORES[st] || '#667085') + '">' +
     esc(ETIQ[st] || st) + '</span>';
 }
-function guardarSesion(s){ SES = s; try { localStorage.setItem('jl_session', s); } catch (e) {} }
-function borrarSesion(){ SES = null; try { localStorage.removeItem('jl_session'); localStorage.removeItem('jl_lista_v1'); } catch (e) {} }
-function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
-function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); localStorage.removeItem('jl_lista_v1'); } catch (e) {} }
+function guardarSesion(s){ limpiarEstadoPanel(); SES = s; try { localStorage.setItem(STORE + 'session', s); } catch (e) {} }
+function borrarSesion(){ limpiarEstadoPanel(); SES = null; try { localStorage.removeItem(STORE + 'session'); localStorage.removeItem(STORE + 'list'); } catch (e) {} }
+function guardarAdmin(s){ limpiarEstadoPanel(); ADM = s; try { localStorage.setItem('lm_v2_admin', s); } catch (e) {} }
+function borrarAdmin(){ limpiarEstadoPanel(); ADM = null; try { localStorage.removeItem('lm_v2_admin'); localStorage.removeItem(STORE + 'list'); } catch (e) {} }
+window.addEventListener('storage', function(e){
+  if (e.key === null || e.key === STORE + 'session' || e.key === 'lm_v2_admin') {
+    limpiarEstadoPanel();
+    try { SES = localStorage.getItem(STORE + 'session') || null; ADM = localStorage.getItem('lm_v2_admin') || null; } catch(err) { SES = ADM = null; }
+    arrancar();
+  }
+});
+
 function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
 
 // ============================================================
@@ -934,7 +1043,7 @@ function irALeads(){
 // ============================================================
 // v4.1: esAdmin=true → código al correo de Rodrigo, sesión jl_admin.
 function verOtp(esAdmin){
-  vistaActual = 'otp';
+  nuevaVista('otp');
   var who = esAdmin ? '&who=admin' : '';
   // v6.7: pantalla completa centrada. MISMOS ids, MISMA logica.
   app.innerHTML =
@@ -962,7 +1071,7 @@ function verOtp(esAdmin){
   var err = document.getElementById('otp-err');
   function pedirCodigo(btn){
     btn.disabled = true; btn.textContent = 'Sending...'; err.textContent = '';
-    fetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
+    panelFetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Could not send the code.'; btn.disabled = false; btn.textContent = 'Email me a code'; return; }
         document.getElementById('btn-send').style.display = 'none';
@@ -975,7 +1084,7 @@ function verOtp(esAdmin){
   document.getElementById('btn-send').onclick = function(){ pedirCodigo(this); };
   document.getElementById('btn-resend').onclick = function(){
     var b = this; b.disabled = true; b.textContent = 'Sending...';
-    fetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
+    panelFetch(API + '?api=otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         err.textContent = d.ok ? '' : (d.error || 'Could not send the code.');
         b.disabled = false; b.textContent = 'Send a new code';
@@ -987,7 +1096,7 @@ function verOtp(esAdmin){
     var code = document.getElementById('otp-code').value.trim();
     if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
     var b = this; b.disabled = true; b.textContent = 'Checking...'; err.textContent = '';
-    fetch(API + '?api=otp_verify&code=' + encodeURIComponent(code) + who)
+    panelFetch(API + '?api=otp_verify&code=' + encodeURIComponent(code) + who)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Incorrect code.'; b.disabled = false; b.textContent = 'Enter'; return; }
@@ -1003,33 +1112,31 @@ function verOtp(esAdmin){
 //  VISTA: LISTA DE LEADS (buscador + filtros + refresco 60s)
 // ============================================================
 function verLista(){
-  vistaActual = 'lista';
-  // v4.4: pintar AL INSTANTE desde la última lista conocida y traer la
-  // versión fresca en segundo plano (el repintado es imperceptible).
-  if (!LISTA.length) {
-    try { LISTA = JSON.parse(localStorage.getItem('jl_lista_v1') || '[]'); } catch (e) { LISTA = []; }
-    if (!(LISTA instanceof Array)) LISTA = [];
-  }
+  nuevaVista('lista');
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta) LISTA = [];
   if (LISTA.length) { pintarLista(true); cargarLista(false); }
   else { app.innerHTML = '<div class="spin"></div>'; cargarLista(true); }
 }
 
 function cargarLista(render){
   if (!SES && !ADM) { verOtp(false); return; }
+  var contexto = contextoPanel(), peticion = ++serieLista;
   var auth = ADM ? '&adm=' + encodeURIComponent(ADM) : '&s=' + encodeURIComponent(SES);
-  fetch(API + '?api=list' + auth)
+  panelFetch(API + '?api=list' + auth)
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (contexto !== contextoPanel() || peticion !== serieLista) return;
       if (!d.ok) {
         if (ADM) { borrarAdmin(); verOtp(true); } else { borrarSesion(); verOtp(false); }
         return;
       }
+      if (!autorizarLista(d.leads || [])) return;
       LISTA = d.leads || [];
-      try { localStorage.setItem('jl_lista_v1', JSON.stringify(LISTA)); } catch (e) {}
       prefetchDetalles(); // v6.28: los proximos opens salen del cache
       if (vistaActual === 'lista') pintarLista(render);
     })
     .catch(function(){
+      if (contexto !== contextoPanel() || peticion !== serieLista) return;
       if (render && vistaActual === 'lista') {
         app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
           '<p class="muted">Check your signal.</p>' +
@@ -1132,7 +1239,7 @@ function construirCuerpo(){
 }
 
 function pintarLista(scrollTop){
-  vistaActual = 'lista';
+  nuevaVista('lista');
 
   var chips = FILTROS.map(function(f){
     var n = f[2] ? LISTA.filter(function(l){ return f[2].indexOf(l.status) !== -1; }).length : LISTA.length;
@@ -1149,7 +1256,7 @@ function pintarLista(scrollTop){
         (ADM ? 'ADMIN · ' : '') + LISTA.length + ' leads</span></div>' +
       '<h1>Your leads</h1>' +
       '<p class="biz">' + (ADM
-        ? 'Admin mode: read-only, opening leads affects nothing. <a href="javascript:salirAdmin()" style="color:#8fa3c4">Exit admin</a>'
+        ? 'Admin mode: read-only, opening leads affects nothing. <a href="#" onclick="salirAdmin();return false" style="color:#8fa3c4">Exit admin</a>'
         : 'Tap a lead to see contact info and update its status.') + '</p>' +
     '</div>' +
     '<div class="wrap" style="padding-bottom:20px">' +
@@ -1209,7 +1316,7 @@ function enviarApertura(){
   if (aperturaEnviada || ADM || !ID || !T) return;
   aperturaEnviada = true;
   try {
-    fetch(API + '?api=opened&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+    panelFetch(API + '?api=opened&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
   } catch(e){}
 }
@@ -1233,7 +1340,7 @@ function registrarLlamada(){
   if (ADM) return;
   if (!humano) return;
   try {
-    fetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+    panelFetch(API + '?api=call&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
   } catch(e){}
 }
@@ -1264,7 +1371,10 @@ function smsCount(l){ // v6.30: recibe EL lead — jamas el global
   try {
     if (!c) {
       var t = 0;
-      try { t = (JSON.parse(localStorage.getItem('jl_sms_' + (l.id || ID))) || {}).t || 0; } catch (e2) {}
+      try { var flag = JSON.parse(localStorage.getItem(STORE + 'sms:' + (l.id || ID))) || {};
+        var token = l.t || (l.id === ID ? T : autorizados[l.id]);
+        if (flag.contexto === contextoPanel() && flag.token === token) t = flag.t || 0;
+      } catch (e2) {}
       if (t && (Date.now() - t) < 600000) c = 1;
     }
   } catch (e) {}
@@ -1286,9 +1396,9 @@ function registrarSms(){
   if (ADM) return;
   if (!humano) return;
   // flag local SOLO cuando de verdad se registra (flag = nota en el Sheet)
-  try { localStorage.setItem('jl_sms_' + ID, JSON.stringify({t: Date.now()})); } catch (e) {}
+  try { localStorage.setItem(STORE + 'sms:' + ID, JSON.stringify({t: Date.now(), contexto:contextoPanel(), token:T})); } catch (e) {}
   try {
-    fetch(API + '?api=sms&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
+    panelFetch(API + '?api=sms&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T))
       .catch(function(){});
   } catch(e){}
 }
@@ -1437,10 +1547,12 @@ function abrirSeguro(dot, ins){
 }
 // Reintento on-demand (chip gris): api=insurance con throttle del motor.
 function cargarSeguro(sh){
-  fetch(API + '?api=insurance&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+  var q = capturarVista();
+  panelFetch(API + '?api=insurance&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
       (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (!vistaVigente(q)) return;
       if (!seguroAbierto || seguroAbierto.sh !== sh) return;
       var body = sh.querySelector('.sbody');
       if (d.ok && d.insurance) {
@@ -1452,6 +1564,7 @@ function cargarSeguro(sh){
       }
     })
     .catch(function(){
+      if (!vistaVigente(q)) return;
       if (!seguroAbierto || seguroAbierto.sh !== sh) return;
       sh.querySelector('.sbody').innerHTML = '<p class="empty">Connection error. Try again.</p>';
     });
@@ -2014,7 +2127,7 @@ function cuerpoCarrier(ins){
       (m.off1 ? '<div class="drow"><span>Officer</span><b>' + esc(m.off1) + '</b></div>' : '') +
       (m.off2 && m.off2 !== m.off1 ? '<div class="drow"><span>Officer 2</span><b>' + esc(m.off2) + '</b></div>' : '') +
       (m.tel ? '<div class="drow"><span>Phone</span><b><a href="tel:' + esc(String(m.tel).replace(/\D/g,'')) + '" style="color:inherit">' + esc(fmtTel(m.tel)) + '</a></b></div>' : '') +
-      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all"><a href="mailto:' + esc(m.em) + '" style="color:inherit">' + esc(m.em) + '</a></b></div>' : '') +
+      (m.em ? '<div class="drow"><span>Email</span><b style="word-break:break-all">' + (lm3SafeUrl('mailto:'+m.em) ? '<a href="' + esc(lm3SafeUrl('mailto:'+m.em)) + '" style="color:inherit">' + esc(m.em) + '</a>' : esc(m.em)) + '</b></div>' : '') +
       (m.addr ? '<div class="drow"><span>Address</span><b style="text-align:right"><a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(m.addr) + '" style="color:inherit">' + esc(m.addr) + '</a></b></div>' : '') +
       (m.add ? '<div class="drow" style="border-bottom:0"><span>DOT active since</span><b>' + esc(fechaIso(m.add)) + '</b></div>' : '') +
       '<p class="ocap" style="margin:6px 0 0">From the carrier\u2019s federal MCS-150 filing \u2014 compare with what the lead provided.</p></div>';
@@ -2317,7 +2430,7 @@ function filaDet(x){
   }
   if (low === 'yes') val = '<span class="pv yes">Yes</span>';
   else if (low === 'no') val = '<span class="pv no">No</span>';
-  else if (etiqueta === 'email' && v.indexOf('@') !== -1)
+  else if (etiqueta === 'email' && lm3SafeUrl('mailto:'+v))
     val = '<b><a class="dlink" href="mailto:' + esc(v) + '">' + esc(v) + '</a></b>';
   else val = '<b>' + esc(v) + '</b>';
   return '<div class="drow"><span>' + esc(x[0]) + '</span>' + val + '</div>';
@@ -2374,16 +2487,19 @@ function abrirVerify(vPre){ // v6.22: acepta verify precargado de api=lead
 }
 
 function cargarVerify(sh){
-  fetch(API + '?api=verify&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+  var q = capturarVista();
+  panelFetch(API + '?api=verify&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
       (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
     .then(function(j){
+      if (!vistaVigente(q)) return;
       if (!vfyAbierto || vfyAbierto.sh !== sh) return;
       if (!j.ok) { sh.innerHTML = vHeadHTML('') +
         '<div style="padding:0 18px 18px"><p class="ocap">' + esc(j.error || 'Could not load.') + '</p></div>'; return; }
       armarVerifySheet(sh, j.verify);
     })
     .catch(function(){
+      if (!vistaVigente(q)) return;
       if (!vfyAbierto || vfyAbierto.sh !== sh) return;
       sh.innerHTML = vHeadHTML('') +
         '<div style="padding:0 18px 18px"><p class="ocap">Network error \u2014 close and try again.</p></div>';
@@ -2410,8 +2526,10 @@ function vChipGlobal(v){
   return '<span class="achip warn">Partial</span>';
 }
 function vLink(url, txt){
-  if (!url) return '';
-  return '<a class="vlink" target="_blank" rel="noopener" href="' + esc(url) + '">' + esc(txt) + '</a>';
+  if (!url) return esc(txt || '');
+  var safe=lm3SafeUrl(url);
+  if(!safe)return esc(txt || url);
+  return '<a class="vlink" target="_blank" rel="noopener" href="' + esc(safe) + '">' + esc(txt) + '</a>';
 }
 
 // ── Tab 1: VERIFY (identidad y contexto regulatorio) ──
@@ -2672,39 +2790,36 @@ function filaSeguroDetalle(d){
 // localStorage — abrirlos despues pinta al instante (mecanismo
 // cache-first de v6.6). api=lead NO registra aperturas (v23.3), asi
 // que el prefetch no contamina metricas. Escalonado 350ms.
+var prefetchEnCurso = false;
 function prefetchDetalles(){
-  try {
-    var cand = [];
-    for (var i = 0; i < LISTA.length && cand.length < 6; i++) {
-      var l = LISTA[i];
-      if (!l || !l.id || !l.t) continue;
-      var hay = null;
-      try { hay = localStorage.getItem('jl_lead_v1_' + l.id); } catch (e) {}
-      if (!hay) cand.push(l);
-    }
-    var k = 0;
-    (function uno(){
-      if (k >= cand.length) return;
-      var l = cand[k++];
-      fetch(API + '?api=lead&id=' + encodeURIComponent(l.id) + '&t=' + encodeURIComponent(l.t) +
-        (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          if (d && d.ok) { try { localStorage.setItem('jl_lead_v1_' + l.id, JSON.stringify(d)); } catch (e) {} }
-        })
-        .catch(function(){})
-        .then(function(){ setTimeout(uno, 350); });
-    })();
-  } catch (e) {}
+  if (prefetchEnCurso) return;
+  var epoca = epocaDatos;
+  var contexto = contextoPanel(), adm = ADM;
+  if (contextoAutorizado !== contexto || Date.now() >= autorizadoHasta) return;
+  var cand = LISTA.filter(function(l){ return l && l.id && l.t && !cacheDetalleLeer(l.id,l.t); }).slice(0,6), k = 0;
+  prefetchEnCurso = true;
+  (function uno(){
+    if (epoca !== epocaDatos || contexto !== contextoPanel() || Date.now() >= autorizadoHasta || k >= cand.length || vistaActual === 'detalle') { prefetchEnCurso = false; return; }
+    var l = cand[k++];
+    panelFetch(API + '?api=lead&id=' + encodeURIComponent(l.id) + '&t=' + encodeURIComponent(l.t) +
+      (adm ? '&adm=' + encodeURIComponent(adm) : ''))
+      .then(function(r){ return r.json(); })
+      .then(function(d){ if (epoca === epocaDatos && contexto === contextoPanel()) cacheDetalleGuardar(l.id,l.t,d); })
+      .catch(function(){})
+      .then(function(){ setTimeout(uno,350); });
+  })();
 }
 
 function verDetalle(id, t, desdeLista){
   // v5.4: si el gesto humano ya ocurrió (p. ej. tap en la lista),
   // registrar la apertura al entrar al detalle.
   aperturaEnviada = false;
-  if (humano) setTimeout(enviarApertura, 0);
-  vistaActual = 'detalle';
+
+  nuevaVista('detalle');
   ID = id; T = t;
+  if (!idDelPanel(id)) { verOtp(false); return; }
+  var aperturaVista = capturarVista();
+  if (humano) setTimeout(function(){ if (vistaVigente(aperturaVista)) enviarApertura(); }, 0);
   // v4.4: si el lead está en la lista, pintar el encabezado y los
   // botones Call/WhatsApp AL INSTANTE mientras llega el detalle
   // completo. Los links de correo (sin lista cargada) conservan el
@@ -2713,12 +2828,12 @@ function verDetalle(id, t, desdeLista){
   // v6.6: cache por lead — si ya lo visitamos, el detalle COMPLETO
   // pinta al instante y api=lead refresca en segundo plano.
   var cacheado = null;
-  try { cacheado = JSON.parse(localStorage.getItem('jl_lead_v1_' + id) || 'null'); } catch (e) {}
+  cacheado = cacheDetalleLeer(id, t);
   if (cacheado && cacheado.ok) {
     LEAD = cacheado; render();
   } else {
     var prev = null;
-    for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
+    for (var i = 0; contextoAutorizado === contextoPanel() && Date.now() < autorizadoHasta && i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
     if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
   }
   // v4.4: sin ping previo en modo admin — el motor v21.5 responde
@@ -2729,6 +2844,7 @@ function verDetalle(id, t, desdeLista){
 // v4.4: encabezado provisional con los datos que ya tenemos de la
 // lista. Se reemplaza completo cuando llega api=lead.
 function pintarEsqueleto(l){
+  var q = capturarVista(); q.render = ++serieRender;
   var chips = (l.coverages || []).map(function(c){ return '<span class="chip">' + esc(c) + '</span>'; }).join('');
   var eDesk = !!(window.matchMedia && matchMedia('(min-width:900px)').matches);
   var hInfo =
@@ -2752,21 +2868,25 @@ function pintarEsqueleto(l){
   document.getElementById('btn-lista').onclick = irALeads;
   // v5: un Call desde el esqueleto también cuenta (el detalle aún carga)
   var bsk = document.getElementById('btn-call-sk');
-  if (bsk) bsk.addEventListener('click', registrarLlamada);
+  if (bsk) bsk.addEventListener('click', function(e){ if (!vistaVigente(q)) { e.preventDefault(); return; } registrarLlamada(); });
   // v6.29: Text desde el esqueleto — href calculado EN el click con
   // los datos de la lista (LEAD aun no llega).
   var ssk = document.getElementById('btn-sms-sk');
-  if (ssk) ssk.addEventListener('click', function(){
+  if (ssk) ssk.addEventListener('click', function(e){
+    if (!vistaVigente(q)) { e.preventDefault(); return; }
     this.href = smsHref(LEAD && LEAD.ok && LEAD.id === l.id ? LEAD : l); // v6.30: jamas datos de otro lead
     registrarSms();
   });
 }
 
 function cargarDetalle(){
-  fetch(API + '?api=lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+  var q = capturarVista();
+  panelFetch(API + '?api=lead&id=' + encodeURIComponent(q.id) + '&t=' + encodeURIComponent(q.t) +
       (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (!vistaVigente(q)) return;
+      if (d && d.ok && (d.id !== q.id || !!d.admin !== !!ADM)) return;
       if (!d.ok) {
         // v4.4: sesión admin vencida — pedir código nuevo (el motor NO
         // registró la apertura).
@@ -2782,13 +2902,14 @@ function cargarDetalle(){
       // la agente no esta a mitad de una seleccion (sel === null).
       if (d && d.ms) { try { console.log('[perf] api=lead server ' + d.ms + 'ms'); } catch (eP) {} } // v6.28
       var igual = false;
-      try { igual = JSON.stringify(LEAD) === JSON.stringify(d); } catch (e) {}
-      try { localStorage.setItem('jl_lead_v1_' + ID, JSON.stringify(d)); } catch (e) {}
+      try { igual = proyeccionDetalle(LEAD) === proyeccionDetalle(d); } catch (e) {}
+      cacheDetalleGuardar(q.id, q.t, d);
       if (igual) return;
       if (sel !== null && LEAD && LEAD.id === d.id) { LEAD = d; return; } // data fresca sin pisar el click
       LEAD = d; render();
     })
     .catch(function(){
+      if (!vistaVigente(q)) return;
       if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
       app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
         '<p class="muted">Check your signal and reload the page.</p></div>';
@@ -2797,6 +2918,9 @@ function cargarDetalle(){
 function cargar(){ verDetalle(ID, T, false); }
 
 function render(){
+  promptLlamadaActual = null;
+  if (!LEAD || LEAD.id !== ID) return;
+  var q = capturarVista(); q.render = ++serieRender;
   var d = LEAD, pc = COLORES[d.status] || '#667085';
   // v4.1: modo admin = solo lectura (el servidor ya confirmó con d.admin)
   var esAdmin = !!(ADM && d.admin);
@@ -2905,13 +3029,13 @@ function render(){
 
   // v6.6: clamp de Your activity — si el contenido excede el tope,
   // se recorta con degradado y aparece "Show all".
-  (function(){
+  (function(){ if (!vistaVigente(q)) return;
     var ab = document.getElementById('actbody');
     if (!ab) return;
     var tarjeta = ab.parentNode;
     if (ab.scrollHeight > 230) {
       tarjeta.classList.add('clamp');
-      document.getElementById('actmore').onclick = function(){
+      document.getElementById('actmore').onclick = function(){ if (!vistaVigente(q)) return;
         tarjeta.classList.remove('clamp');
       };
     }
@@ -2920,13 +3044,15 @@ function render(){
   // v6: Insurance Intel — abre el sheet (con data cargada) o dispara
   // el fetch on-demand cuando la celda sigue pendiente.
   var bIns = document.getElementById('btn-ins');
-  if (bIns) bIns.addEventListener('click', function(){
+  if (bIns) bIns.addEventListener('click', function(event){
+    if (!vistaVigente(q)) { if (event) event.preventDefault(); return; }
     abrirSeguro(d.dot, d.insurance || null);
   });
 
   // v6.19: Digital Fingerprint — siempre disponible (con o sin DOT).
   var bVfy = document.getElementById('btn-vfy');
-  if (bVfy) bVfy.addEventListener('click', function(){
+  if (bVfy) bVfy.addEventListener('click', function(event){
+    if (!vistaVigente(q)) { if (event) event.preventDefault(); return; }
     abrirVerify(d.verify || null); // v6.22: abre al instante si ya corrio
   });
 
@@ -2940,7 +3066,7 @@ function render(){
 
   var btns = app.querySelectorAll('#sts .st');
   btns.forEach(function(b){
-    b.onclick = function(){
+    b.onclick = function(){ if (!vistaVigente(q)) return;
       sel = b.getAttribute('data-s');
       selLabel = b.getAttribute('data-l');
       btns.forEach(function(x){ x.classList.remove('sel'); });
@@ -2953,7 +3079,8 @@ function render(){
 
   // ── Post-llamada: al volver de marcar, un tap guarda el resultado ──
   var tsLlamada = 0, promptMostrado = false;
-  document.getElementById('btn-call').addEventListener('click', function(){
+  document.getElementById('btn-call').addEventListener('click', function(event){
+    if (!vistaVigente(q)) { if (event) event.preventDefault(); return; }
     tsLlamada = Date.now(); promptMostrado = false;
     registrarLlamada(); // v5: conteo + status Called + aviso (motor v23)
   });
@@ -2961,13 +3088,15 @@ function render(){
   // v6.29: Text — el href se recalcula EN el click (antes de
   // registrar) para que un segundo tap en la misma vista ya lleve
   // el mensaje 2. La navegacion usa el href recien puesto.
-  document.getElementById('btn-sms').addEventListener('click', function(){
+  document.getElementById('btn-sms').addEventListener('click', function(event){
+    if (!vistaVigente(q)) { if (event) event.preventDefault(); return; }
     this.href = smsHref(LEAD);
     registrarSms();
   });
 
   function pantallaExito(dd){
-    try { localStorage.removeItem('jl_lead_v1_' + ID); } catch (e) {} // v6.6: proximo open, fresco
+    if (!vistaVigente(q)) return;
+    try { localStorage.removeItem(STORE + 'lead:' + ID); } catch (e) {} // v6.6: proximo open, fresco
     app.innerHTML =
       '<div class="center">' +
       '<div class="okmark">✓</div>' +
@@ -2980,6 +3109,7 @@ function render(){
   }
 
   function guardarRapido(estado, etiqueta){
+    if (!vistaVigente(q)) return;
     var cp = document.getElementById('callprompt');
     if (cp) cp.remove();
     if (!humano && !ADM) return; // v5.5: un sandbox jamás guarda un status
@@ -2987,15 +3117,15 @@ function render(){
       '&s=' + estado + '&notes=';
     var sv = document.getElementById('save');
     if (sv) { sv.disabled = true; sv.textContent = 'Saving: ' + etiqueta + '...'; }
-    fetch(url)
+    panelFetch(url)
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(function(d){ if (!vistaVigente(q)) return;
         if (!d.ok) { if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
           var err = document.getElementById('err');
           if (err) err.textContent = d.error || 'Could not save. Try again.'; return; }
         pantallaExito(d);
       })
-      .catch(function(){
+      .catch(function(){ if (!vistaVigente(q)) return;
         if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
         var err = document.getElementById('err');
         if (err) err.textContent = 'Connection error. Your update was not saved — try again.';
@@ -3003,6 +3133,7 @@ function render(){
   }
 
   function mostrarPromptLlamada(){
+    if (!vistaVigente(q)) return;
     if (vistaActual !== 'detalle') return;
     if (promptMostrado || !tsLlamada) return;
     if (Date.now() - tsLlamada < 8000) return;
@@ -3018,23 +3149,20 @@ function render(){
       '<button type="button" class="cp-btn cp-sms" id="cp-sms">Send a text instead</button>' + // v6.29
       '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
     document.body.appendChild(div);
-    document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
-    document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
+    document.getElementById('cp-yes').onclick = function(){ if (!vistaVigente(q)) return; guardarRapido('contacted', 'Contacted'); };
+    document.getElementById('cp-no').onclick = function(){ if (!vistaVigente(q)) return; guardarRapido('not_reached', 'Not Reached'); };
     // v6.29: cerrar el prompt, registrar el SMS (el motor pone Not
     // Reached + nota) y redirigir a Mensajes con el texto listo.
-    document.getElementById('cp-sms').onclick = function(){
+    document.getElementById('cp-sms').onclick = function(){ if (!vistaVigente(q)) return;
       var href = smsHref(LEAD); // ANTES de registrar (mensaje correcto)
       div.remove();
       registrarSms();
       location.href = href;
     };
-    document.getElementById('cp-later').onclick = function(){ div.remove(); };
+    document.getElementById('cp-later').onclick = function(){ if (!vistaVigente(q)) return; div.remove(); };
   }
 
-  document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible') mostrarPromptLlamada();
-  });
-  window.addEventListener('pageshow', mostrarPromptLlamada);
+  promptLlamadaActual = mostrarPromptLlamada;
 
   // ── v6.5: GUARDADO EN DOS PASOS ──
   // Paso 1: boton Save (savebar) abre la hoja de confirmacion con los
@@ -3043,10 +3171,11 @@ function render(){
   // de siempre (contrato con el motor intacto).
   var confirmAbierto = null;
   function cerrarConfirm(){
+    if (!vistaVigente(q)) return;
     if (!confirmAbierto) return;
     var el = confirmAbierto; confirmAbierto = null;
     el.ov.classList.remove('on'); el.sh.classList.remove('on');
-    setTimeout(function(){ if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
+    setTimeout(function(){ if (!vistaVigente(q)) return; if (el.ov.parentNode) el.ov.parentNode.removeChild(el.ov);
       if (el.sh.parentNode) el.sh.parentNode.removeChild(el.sh); }, 240);
     var sv = document.getElementById('save');
     if (sv && sel) { sv.disabled = false; sv.textContent = 'Save: ' + selLabel; }
@@ -3078,6 +3207,7 @@ function render(){
     return '';
   }
   function abrirConfirmSave(){
+    if (!vistaVigente(q)) return;
     cerrarConfirm();
     var ov = document.createElement('div'); ov.className = 'ov';
     var sh = document.createElement('div'); sh.className = 'sheet';
@@ -3095,7 +3225,7 @@ function render(){
     ov.addEventListener('click', cerrarConfirm);
     sh.querySelector('.sclose').addEventListener('click', cerrarConfirm);
     confirmAbierto = {ov: ov, sh: sh};
-    requestAnimationFrame(function(){ ov.classList.add('on'); sh.classList.add('on'); });
+    requestAnimationFrame(function(){ if (!vistaVigente(q)) return; ov.classList.add('on'); sh.classList.add('on'); });
     // Prellenados (mismos de siempre) + termino
     if (sel === 'sold') {
       if (j.premium) document.getElementById('sold_premium').value = j.premium;
@@ -3104,7 +3234,7 @@ function render(){
       var termBtns = sh.querySelectorAll('.term-btn');
       termBtns.forEach(function(tb){
         tb.classList.toggle('sel', parseInt(tb.getAttribute('data-term'), 10) === termSel);
-        tb.onclick = function(ev){
+        tb.onclick = function(ev){ if (!vistaVigente(q)) return;
           ev.stopPropagation();
           termSel = parseInt(tb.getAttribute('data-term'), 10);
           termBtns.forEach(function(x){ x.classList.remove('sel'); });
@@ -3116,10 +3246,12 @@ function render(){
     document.getElementById('confirm-save').onclick = enviarGuardado;
   }
   function enviarGuardado(){
+    if (!vistaVigente(q)) return;
     var err = document.getElementById('err');
     var cb = document.getElementById('confirm-save');
     err.textContent = '';
     function fallo(msg){ err.textContent = msg; cb.disabled = false; cb.innerHTML = 'Confirm &amp; save'; }
+    invalidarLecturas();
     var params = {api:'save', id:ID, t:T, s:sel, notes:document.getElementById('notes').value};
     if (sel === 'sold') {
       var sp = parseFloat(document.getElementById('sold_premium').value);
@@ -3143,14 +3275,14 @@ function render(){
       return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
     fetch(url)
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(function(d){ if (!vistaVigente(q)) return;
         if (!d.ok) { fallo(d.error || 'Could not save. Try again.'); return; }
         cerrarConfirm();
         pantallaExito(d);
       })
-      .catch(function(){ fallo('Connection error. Your changes were not saved — try again.'); });
+      .catch(function(){ if (!vistaVigente(q)) return; fallo('Connection error. Your changes were not saved — try again.'); });
   }
-  document.getElementById('save').onclick = function(){
+  document.getElementById('save').onclick = function(){ if (!vistaVigente(q)) return;
     if (!sel) return;
     abrirConfirmSave();
   };

@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 <title>Hector Lead Panel</title>
 <style>
+/* Batch 1 candidate — NOT DEPLOYED. Historical version notes below refer to the frozen baseline. */
 /* ============================================================
    HECTOR LEAD PANEL v1.2 — RENDIMIENTO (requiere motor v21.5).
    v1.2: percepción de instantaneidad, sin cambios de flujo:
@@ -43,8 +44,8 @@
    - Sin notas de Rodrigo, sin coberturas, sin NAICS/SIC. Muestra
      GAR, negocio y financials.
    - API: h_lead / h_save / h_list / h_otp_request / h_otp_verify /
-     h_ping. Sesión en localStorage 'hl_session'. Admin ?admin=1
-     comparte la sesión ADMIN de Rodrigo ('jl_admin': un solo código
+     h_ping. Sesión en localStorage STORE + 'session'. Admin ?admin=1
+     comparte la sesión ADMIN de Rodrigo ('lm_v2_admin': un solo código
      admin sirve para los dos paneles).
    ============================================================ */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -199,6 +200,29 @@ textarea{height:62px;resize:vertical}
 <div id="app"><div class="spin"></div></div>
 
 <script>
+// Batch 3 candidate: safe outbound URL policy. NOT DEPLOYED.
+function lm3SafeUrl(value){
+  if(typeof value!=='string')return '';
+  const s=value.trim();
+  if(!s||/[\u0000-\u0020\u007f\\<>"']/.test(s)||/%(?:0[0-9a-f]|1[0-9a-f]|7f)/i.test(s))return '';
+  const m=s.match(/^([a-z][a-z0-9+.-]*):(.+)$/i);if(!m)return '';
+  const scheme=m[1].toLowerCase(),rest=m[2];
+  if(scheme==='http'||scheme==='https'){
+    if(!/^\/\/[^\/?#]+/.test(rest))return '';
+    const host=rest.slice(2).split(/[\/?#]/)[0];
+    if(host.includes('@')||! /^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host))return '';
+    const hostname=host.split(':')[0];
+    if(hostname.length>253||hostname.split('.').some(label=>! /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)))return '';
+    if(/^\d+(?:\.\d+){3}$/.test(hostname)&&hostname.split('.').some(n=>Number(n)>255))return '';
+    if(/:\d+$/.test(host)&&Number(host.match(/:(\d+)$/)[1])>65535)return '';
+  }else if(scheme==='tel'||scheme==='sms'){
+    if(!/^\+?[0-9().-]+(?:[?&]body=[^#]*)?$/.test(rest))return '';
+  }else if(scheme==='mailto'){
+    if(!/^[^@/?#]+@[^@/?#]+(?:\?[^#]*)?$/.test(rest))return '';
+  }else return '';
+  return scheme+':'+rest;
+}
+
 // ====== CONFIGURA ESTO: tu URL /exec del Apps Script ======
 var API = 'https://script.google.com/macros/s/AKfycbw3vDEX509WAsvwrT6exgib4z4tFknocNAr82uxvDrR2u9NYRMyLM7aOqJWrNERCqSZ/exec';
 // ===========================================================
@@ -231,11 +255,75 @@ var FILTROS = [
   ['closed','Closed', ['Declined']]
 ];
 
-// Sesión de Hector: 'hl_session'. Admin: 'jl_admin' (COMPARTIDA con el
+// Sesión de Hector: STORE + 'session'. Admin: 'lm_v2_admin' (COMPARTIDA con el
 // panel de Jenny — un solo código admin de Rodrigo sirve para ambos).
+// Batch 1: tracker/role-scoped storage. Legacy credentials are never imported.
+var PANEL = 'h', STORE = 'lm_v2_' + PANEL + ':';
+var epocaVista = 0, serieRender = 0, serieLista = 0;
+var contextoAutorizado = null, autorizados = {}, autorizadoHasta = 0;
+function contextoPanel(){ return ADM ? 'admin:' + ADM : SES ? 'agent:' + SES : 'link'; }
+function idDelPanel(id){ return (/^H\d/).test(String(id || '')); }
+function capturarVista(){ return {epoca:epocaVista, id:ID, t:T, contexto:contextoPanel()}; }
+function vistaVigente(q){ return vistaActual === 'detalle' && q.epoca === epocaVista &&
+  q.id === ID && q.t === T && q.contexto === contextoPanel() &&
+  (q.render === undefined || q.render === serieRender); }
+// Pending reads only; never store a settled response or an authorization decision.
+var epocaDatos = 0, lecturasEnCurso = Object.create(null);
+function invalidarLecturas(){ epocaDatos++; lecturasEnCurso = Object.create(null); }
+function panelFetch(url, options){
+  var api = new URLSearchParams(String(url).split('?')[1] || '').get('api');
+  var lectura = (!options || !options.method || options.method === 'GET') &&
+    ['lead','h_lead','list','h_list'].indexOf(api) >= 0;
+  if (!lectura) { invalidarLecturas(); return fetch(url, options); }
+  // URL includes tracker, lead ID and token. STORE isolates the panel role.
+  // epocaDatos fences mutations/logout; each consumer retains its own epocaVista.
+  var key = JSON.stringify([STORE, contextoPanel(), epocaDatos, epocaVista, String(url)]);
+  var map = lecturasEnCurso, p = map[key];
+  if (!p) {
+    p = fetch(url, options).then(function(r){ return r.json(); });
+    map[key] = p;
+    var limpiar = function(){ if (map[key] === p) delete map[key]; };
+    p.then(limpiar, limpiar);
+  }
+  // Consumers may enrich LEAD locally; do not share mutable parsed objects.
+  return p.then(function(d){ return {json:function(){ return Promise.resolve(JSON.parse(JSON.stringify(d))); }}; });
+}
+// Execution/view fences remain independent of response telemetry.
+var promptLlamadaActual = null;
+function proyeccionDetalle(d){
+  if (!d) return null;
+  var v = {};
+  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms') v[k] = d[k]; });
+  return JSON.stringify(v);
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible' && promptLlamadaActual) promptLlamadaActual();
+});
+window.addEventListener('pageshow', function(){ if (promptLlamadaActual) promptLlamadaActual(); });
+function nuevaVista(v){
+  promptLlamadaActual = null;
+  epocaVista++; serieRender++; vistaActual = v; LEAD = null; sel = null; selLabel = '';
+  if (typeof cerrarSeguro === 'function') cerrarSeguro();
+  if (typeof cerrarVerify === 'function') cerrarVerify();
+  document.querySelectorAll('.ov,.sheet,.callprompt').forEach(function(el){ el.remove(); });
+}
+function limpiarEstadoPanel(){
+  invalidarLecturas();
+  promptLlamadaActual = null;
+  LISTA = []; contextoAutorizado = null; autorizados = {}; autorizadoHasta = 0;
+  epocaVista++; serieLista++; LEAD = null; sel = null;
+  try { for (var i = localStorage.length - 1; i >= 0; i--) {
+    var k = localStorage.key(i); if (k && k.indexOf(STORE) === 0 && k !== STORE + 'session') localStorage.removeItem(k);
+  } } catch(e) {}
+}
+function autorizarLista(leads){
+  if (!Array.isArray(leads) || leads.some(function(l){ return !l || !idDelPanel(l.id) || !l.t; })) return false;
+  contextoAutorizado = contextoPanel(); autorizadoHasta = Date.now() + 90000; autorizados = {};
+  leads.forEach(function(l){ autorizados[l.id] = l.t; }); return true;
+}
 var SES = null, ADM = null;
-try { SES = localStorage.getItem('hl_session') || null; } catch (e) {}
-try { ADM = localStorage.getItem('jl_admin') || null; } catch (e) {}
+try { SES = localStorage.getItem(STORE + 'session') || null; } catch (e) {}
+try { ADM = localStorage.getItem('lm_v2_admin') || null; } catch (e) {}
 var LISTA = [];
 var filtroActivo = 'all';
 var textoBusqueda = '';
@@ -257,10 +345,18 @@ function pillEstado(st, extra){
   return '<span class="' + (extra || 'pill') + '" style="background:' + (COLORES[st] || '#667085') + '">' +
     esc(ETIQ[st] || st) + '</span>';
 }
-function guardarSesion(s){ SES = s; try { localStorage.setItem('hl_session', s); } catch (e) {} }
-function borrarSesion(){ SES = null; try { localStorage.removeItem('hl_session'); localStorage.removeItem('hl_lista_v1'); } catch (e) {} }
-function guardarAdmin(s){ ADM = s; try { localStorage.setItem('jl_admin', s); } catch (e) {} }
-function borrarAdmin(){ ADM = null; try { localStorage.removeItem('jl_admin'); localStorage.removeItem('hl_lista_v1'); } catch (e) {} }
+function guardarSesion(s){ limpiarEstadoPanel(); SES = s; try { localStorage.setItem(STORE + 'session', s); } catch (e) {} }
+function borrarSesion(){ limpiarEstadoPanel(); SES = null; try { localStorage.removeItem(STORE + 'session'); localStorage.removeItem(STORE + 'list'); } catch (e) {} }
+function guardarAdmin(s){ limpiarEstadoPanel(); ADM = s; try { localStorage.setItem('lm_v2_admin', s); } catch (e) {} }
+function borrarAdmin(){ limpiarEstadoPanel(); ADM = null; try { localStorage.removeItem('lm_v2_admin'); localStorage.removeItem(STORE + 'list'); } catch (e) {} }
+window.addEventListener('storage', function(e){
+  if (e.key === null || e.key === STORE + 'session' || e.key === 'lm_v2_admin') {
+    limpiarEstadoPanel();
+    try { SES = localStorage.getItem(STORE + 'session') || null; ADM = localStorage.getItem('lm_v2_admin') || null; } catch(err) { SES = ADM = null; }
+    arrancar();
+  }
+});
+
 function salirAdmin(){ borrarAdmin(); history.pushState({}, '', location.pathname); arrancar(); }
 
 // ============================================================
@@ -293,7 +389,7 @@ function irALeads(){
 //  VISTA: CÓDIGO DE ACCESO
 // ============================================================
 function verOtp(esAdmin){
-  vistaActual = 'otp';
+  nuevaVista('otp');
   var who = esAdmin ? '&who=admin' : '';
   app.innerHTML =
     '<div class="hero flat"><span class="eyebrow">Hector Lead Panel' + (esAdmin ? ' · ADMIN' : '') + '</span>' +
@@ -315,7 +411,7 @@ function verOtp(esAdmin){
   var err = document.getElementById('otp-err');
   function pedirCodigo(btn){
     btn.disabled = true; btn.textContent = 'Sending...'; err.textContent = '';
-    fetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
+    panelFetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Could not send the code.'; btn.disabled = false; btn.textContent = 'Email me a code'; return; }
         document.getElementById('btn-send').style.display = 'none';
@@ -328,7 +424,7 @@ function verOtp(esAdmin){
   document.getElementById('btn-send').onclick = function(){ pedirCodigo(this); };
   document.getElementById('btn-resend').onclick = function(){
     var b = this; b.disabled = true; b.textContent = 'Sending...';
-    fetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
+    panelFetch(API + '?api=h_otp_request' + who).then(function(r){ return r.json(); })
       .then(function(d){
         err.textContent = d.ok ? '' : (d.error || 'Could not send the code.');
         b.disabled = false; b.textContent = 'Send a new code';
@@ -340,7 +436,7 @@ function verOtp(esAdmin){
     var code = document.getElementById('otp-code').value.trim();
     if (code.length !== 6) { err.textContent = 'Enter the 6-digit code from your email.'; return; }
     var b = this; b.disabled = true; b.textContent = 'Checking...'; err.textContent = '';
-    fetch(API + '?api=h_otp_verify&code=' + encodeURIComponent(code) + who)
+    panelFetch(API + '?api=h_otp_verify&code=' + encodeURIComponent(code) + who)
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (!d.ok) { err.textContent = d.error || 'Incorrect code.'; b.disabled = false; b.textContent = 'Enter'; return; }
@@ -356,32 +452,30 @@ function verOtp(esAdmin){
 //  VISTA: LISTA DE LEADS
 // ============================================================
 function verLista(){
-  vistaActual = 'lista';
-  // v1.2: pintar AL INSTANTE desde la última lista conocida y traer la
-  // versión fresca en segundo plano (el repintado es imperceptible).
-  if (!LISTA.length) {
-    try { LISTA = JSON.parse(localStorage.getItem('hl_lista_v1') || '[]'); } catch (e) { LISTA = []; }
-    if (!(LISTA instanceof Array)) LISTA = [];
-  }
+  nuevaVista('lista');
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta) LISTA = [];
   if (LISTA.length) { pintarLista(true); cargarLista(false); }
   else { app.innerHTML = '<div class="spin"></div>'; cargarLista(true); }
 }
 
 function cargarLista(render){
   if (!SES && !ADM) { verOtp(false); return; }
+  var contexto = contextoPanel(), peticion = ++serieLista;
   var auth = ADM ? '&adm=' + encodeURIComponent(ADM) : '&s=' + encodeURIComponent(SES);
-  fetch(API + '?api=h_list' + auth)
+  panelFetch(API + '?api=h_list' + auth)
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (contexto !== contextoPanel() || peticion !== serieLista) return;
       if (!d.ok) {
         if (ADM) { borrarAdmin(); verOtp(true); } else { borrarSesion(); verOtp(false); }
         return;
       }
+      if (!autorizarLista(d.leads || [])) return;
       LISTA = d.leads || [];
-      try { localStorage.setItem('hl_lista_v1', JSON.stringify(LISTA)); } catch (e) {}
       if (vistaActual === 'lista') pintarLista(render);
     })
     .catch(function(){
+      if (contexto !== contextoPanel() || peticion !== serieLista) return;
       if (render && vistaActual === 'lista') {
         app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
           '<p class="muted">Check your signal.</p>' +
@@ -443,7 +537,7 @@ function construirCuerpo(){
 }
 
 function pintarLista(scrollTop){
-  vistaActual = 'lista';
+  nuevaVista('lista');
 
   var chips = FILTROS.map(function(f){
     var n = f[2] ? LISTA.filter(function(l){ return f[2].indexOf(l.status) !== -1; }).length : LISTA.length;
@@ -460,7 +554,7 @@ function pintarLista(scrollTop){
         (ADM ? 'ADMIN · ' : '') + LISTA.length + ' leads</span></div>' +
       '<h1>Your leads</h1>' +
       '<p class="biz">' + (ADM
-        ? 'Admin mode: read-only, opening leads affects nothing. <a href="javascript:salirAdmin()" style="color:#8fa3c4">Exit admin</a>'
+        ? 'Admin mode: read-only, opening leads affects nothing. <a href="#" onclick="salirAdmin();return false" style="color:#8fa3c4">Exit admin</a>'
         : 'Tap a lead to see contact info and update its status.') + '</p>' +
     '</div>' +
     '<div class="wrap" style="padding-bottom:20px">' +
@@ -503,15 +597,16 @@ document.addEventListener('visibilitychange', function(){
 //  VISTA: DETALLE DEL LEAD
 // ============================================================
 function verDetalle(id, t, desdeLista){
-  vistaActual = 'detalle';
+  nuevaVista('detalle');
   ID = id; T = t;
+  if (!idDelPanel(id)) { verOtp(false); return; }
   // v1.2: si el lead está en la lista, pintar el encabezado y los
   // botones Call/WhatsApp AL INSTANTE mientras llega el detalle
   // completo. Los links de correo (sin lista cargada) conservan el
   // spinner. El registro de apertura sigue siendo api=h_lead: nada
   // cambia en las métricas.
   var prev = null;
-  for (var i = 0; i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
+  for (var i = 0; contextoAutorizado === contextoPanel() && Date.now() < autorizadoHasta && i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
   if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
   // v1.2: sin ping previo en modo admin — el motor v21.5 responde
   // admin_expired sin registrar apertura si la sesión venció.
@@ -521,6 +616,7 @@ function verDetalle(id, t, desdeLista){
 // v1.2: encabezado provisional con los datos que ya tenemos de la
 // lista. Se reemplaza completo cuando llega api=h_lead.
 function pintarEsqueleto(l){
+  var q = capturarVista(); q.render = ++serieRender;
   var chips = '';
   if (l.gar) chips += '<span class="chip">Revenue ' + esc(l.gar) + '</span>';
   if (l.state) chips += '<span class="chip">' + esc(l.state) + '</span>';
@@ -543,10 +639,13 @@ function pintarEsqueleto(l){
 }
 
 function cargarDetalle(){
-  fetch(API + '?api=h_lead&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
+  var q = capturarVista();
+  panelFetch(API + '?api=h_lead&id=' + encodeURIComponent(q.id) + '&t=' + encodeURIComponent(q.t) +
       (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
     .then(function(d){
+      if (!vistaVigente(q)) return;
+      if (d && d.ok && (d.id !== q.id || !!d.admin !== !!ADM)) return;
       if (!d.ok) {
         // v1.2: sesión admin vencida — pedir código nuevo (el motor NO
         // registró la apertura).
@@ -558,9 +657,11 @@ function cargarDetalle(){
         return;
       }
       if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
-      LEAD = d; render();
+      var igual = LEAD && proyeccionDetalle(LEAD) === proyeccionDetalle(d);
+      LEAD = d; if (!igual) render();
     })
     .catch(function(){
+      if (!vistaVigente(q)) return;
       if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
       app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
         '<p class="muted">Check your signal and reload the page.</p></div>';
@@ -569,6 +670,9 @@ function cargarDetalle(){
 function cargar(){ verDetalle(ID, T, false); }
 
 function render(){
+  promptLlamadaActual = null;
+  if (!LEAD || LEAD.id !== ID) return;
+  var q = capturarVista(); q.render = ++serieRender;
   var d = LEAD, pc = COLORES[d.status] || '#667085';
   var esAdmin = !!(ADM && d.admin);
   var h = d.hector || {notes: []};
@@ -690,14 +794,14 @@ function render(){
   ['life','inv','ann'].forEach(function(pid){
     var chk = document.getElementById('chk-' + pid);
     var card = document.getElementById('prod-' + pid);
-    var sync = function(){ card.classList.toggle('on', chk.checked); };
+    var sync = function(){ if (!vistaVigente(q)) return; card.classList.toggle('on', chk.checked); };
     chk.onchange = sync; sync();
   });
 
   var boxes = {appt1:'box-appt1', appt2:'box-appt2', sold:'box-sold', declined:'box-declined'};
   var btns = app.querySelectorAll('.st');
   btns.forEach(function(b){
-    b.onclick = function(){
+    b.onclick = function(){ if (!vistaVigente(q)) return;
       sel = b.getAttribute('data-s');
       selLabel = b.getAttribute('data-l');
       btns.forEach(function(x){ x.classList.remove('sel'); });
@@ -712,11 +816,13 @@ function render(){
 
   // ── Post-llamada: al volver de marcar, un tap guarda el resultado ──
   var tsLlamada = 0, promptMostrado = false;
-  document.getElementById('btn-call').addEventListener('click', function(){
+  document.getElementById('btn-call').addEventListener('click', function(event){
+    if (!vistaVigente(q)) { if (event) event.preventDefault(); return; }
     tsLlamada = Date.now(); promptMostrado = false;
   });
 
   function pantallaExito(dd){
+    if (!vistaVigente(q)) return;
     app.innerHTML =
       '<div class="center">' +
       '<div class="okmark">✓</div>' +
@@ -729,21 +835,22 @@ function render(){
   }
 
   function guardarRapido(estado, etiqueta){
+    if (!vistaVigente(q)) return;
     var cp = document.getElementById('callprompt');
     if (cp) cp.remove();
     var url = API + '?api=h_save&id=' + encodeURIComponent(ID) + '&t=' + encodeURIComponent(T) +
       '&s=' + estado + '&notes=';
     var sv = document.getElementById('save');
     if (sv) { sv.disabled = true; sv.textContent = 'Saving: ' + etiqueta + '...'; }
-    fetch(url)
+    panelFetch(url)
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(function(d){ if (!vistaVigente(q)) return;
         if (!d.ok) { if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
           var err = document.getElementById('err');
           if (err) err.textContent = d.error || 'Could not save. Try again.'; return; }
         pantallaExito(d);
       })
-      .catch(function(){
+      .catch(function(){ if (!vistaVigente(q)) return;
         if (sv) { sv.disabled = false; sv.textContent = 'Select a status above'; }
         var err = document.getElementById('err');
         if (err) err.textContent = 'Connection error. Your update was not saved — try again.';
@@ -751,6 +858,7 @@ function render(){
   }
 
   function mostrarPromptLlamada(){
+    if (!vistaVigente(q)) return;
     if (vistaActual !== 'detalle') return;
     // v1.1: en Sold/Declined un tap rápido degradaría el estado —
     // ahí Hector actualiza manualmente si hace falta.
@@ -768,17 +876,14 @@ function render(){
       '</div>' +
       '<button type="button" class="cp-later" id="cp-later">I\'ll update it myself</button>';
     document.body.appendChild(div);
-    document.getElementById('cp-yes').onclick = function(){ guardarRapido('contacted', 'Contacted'); };
-    document.getElementById('cp-no').onclick = function(){ guardarRapido('not_reached', 'Not Reached'); };
-    document.getElementById('cp-later').onclick = function(){ div.remove(); };
+    document.getElementById('cp-yes').onclick = function(){ if (!vistaVigente(q)) return; guardarRapido('contacted', 'Contacted'); };
+    document.getElementById('cp-no').onclick = function(){ if (!vistaVigente(q)) return; guardarRapido('not_reached', 'Not Reached'); };
+    document.getElementById('cp-later').onclick = function(){ if (!vistaVigente(q)) return; div.remove(); };
   }
 
-  document.addEventListener('visibilitychange', function(){
-    if (document.visibilityState === 'visible') mostrarPromptLlamada();
-  });
-  window.addEventListener('pageshow', mostrarPromptLlamada);
+  promptLlamadaActual = mostrarPromptLlamada;
 
-  document.getElementById('save').onclick = function(){
+  document.getElementById('save').onclick = function(){ if (!vistaVigente(q)) return;
     var err = document.getElementById('err');
     var sv = document.getElementById('save');
     err.textContent = '';
@@ -798,6 +903,7 @@ function render(){
         return;
       }
     }
+    invalidarLecturas();
     var params = {api:'h_save', id:ID, t:T, s:sel, notes:document.getElementById('notes').value};
 
     if (sel === 'appt1') {
@@ -840,11 +946,11 @@ function render(){
       return k + '=' + encodeURIComponent(params[k] == null ? '' : params[k]); }).join('&');
     fetch(url)
       .then(function(r){ return r.json(); })
-      .then(function(d){
+      .then(function(d){ if (!vistaVigente(q)) return;
         if (!d.ok) { fallo(d.error || 'Could not save. Try again.'); return; }
         pantallaExito(d);
       })
-      .catch(function(){ fallo('Connection error. Your changes were not saved — try again.'); });
+      .catch(function(){ if (!vistaVigente(q)) return; fallo('Connection error. Your changes were not saved — try again.'); });
   };
 }
 
