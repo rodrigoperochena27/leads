@@ -2864,8 +2864,9 @@ function verDetalle(id, t, desdeLista){
   nuevaVista('detalle');
   ID = id; T = t;
   if (!idDelPanel(id)) { verOtp(false); return; }
-  var aperturaVista = capturarVista();
-  if (humano) setTimeout(function(){ if (vistaVigente(aperturaVista)) enviarApertura(); }, 0);
+  // Register the human opening before starting its read generation. The request
+  // stays asynchronous, but cannot invalidate that read's recovery attempt.
+  if (humano) enviarApertura();
   // v4.4: si el lead está en la lista, pintar el encabezado y los
   // botones Call/WhatsApp AL INSTANTE mientras llega el detalle
   // completo. Los links de correo (sin lista cargada) conservan el
