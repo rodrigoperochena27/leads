@@ -861,25 +861,68 @@ function vistaVigente(q){ return vistaActual === 'detalle' && q.epoca === epocaV
   q.id === ID && q.t === T && q.contexto === contextoPanel() &&
   (q.render === undefined || q.render === serieRender); }
 // Pending reads only; never store a settled response or an authorization decision.
-var epocaDatos = 0, lecturasEnCurso = Object.create(null);
+var epocaDatos = 0, lecturasEnCurso = Object.create(null), secuenciaLectura = 0;
 function invalidarLecturas(){ epocaDatos++; lecturasEnCurso = Object.create(null); }
 function panelFetch(url, options){
   var api = new URLSearchParams(String(url).split('?')[1] || '').get('api');
   var lectura = (!options || !options.method || options.method === 'GET') &&
     ['lead','h_lead','list','h_list'].indexOf(api) >= 0;
+  // Writes, OTP and enrichment are never retried or timed out by this reader.
   if (!lectura) { invalidarLecturas(); return fetch(url, options); }
-  // URL includes tracker, lead ID and token. STORE isolates the panel role.
-  // epocaDatos fences mutations/logout; each consumer retains its own epocaVista.
-  var key = JSON.stringify([STORE, contextoPanel(), epocaDatos, epocaVista, String(url)]);
+  var contexto = contextoPanel(), epoca = epocaDatos, vista = epocaVista;
+  // Share only identical reads in the same authorized view and data generation.
+  var key = JSON.stringify([STORE, contexto, epoca, vista, String(url)]);
   var map = lecturasEnCurso, p = map[key];
   if (!p) {
-    p = fetch(url, options).then(function(r){ return r.json(); });
-    map[key] = p;
+    function intento(numero){
+      if (epoca !== epocaDatos || vista !== epocaVista || contexto !== contextoPanel())
+        return Promise.reject(new Error('Read context changed'));
+      var controller = new AbortController();
+      var opts = Object.assign({}, options || {}, {cache:'no-store', signal:controller.signal});
+      // Unique read URLs avoid reusing a cached Apps Script content redirect.
+      var fresh = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_lm_read=' +
+        Date.now().toString(36) + '-' + (++secuenciaLectura);
+      return new Promise(function(resolve,reject){
+        var done = false;
+        function finish(error,data){
+          if (done) return;
+          done = true; clearTimeout(timer);
+          if (error) reject(error); else resolve(data);
+        }
+        // Includes response.json(): a stalled body must release the shared read.
+        var timer = setTimeout(function(){
+          finish(new Error('Read timed out')); controller.abort();
+        },10000);
+        try {
+          fetch(fresh,opts)
+            .then(function(r){ if (!r.ok) throw new Error('Read unavailable'); return r.json(); })
+            .then(function(data){ finish(null,data); },function(error){ finish(error); });
+        } catch (error) { finish(error); }
+      }).catch(function(error){
+        if (numero === 0 && epoca === epocaDatos && vista === epocaVista && contexto === contextoPanel()) return intento(1);
+        throw error;
+      });
+    }
+    p = intento(0); map[key] = p;
     var limpiar = function(){ if (map[key] === p) delete map[key]; };
     p.then(limpiar, limpiar);
   }
-  // Consumers may enrich LEAD locally; do not share mutable parsed objects.
+  // Consumers may enrich LEAD locally; never share mutable parsed objects.
   return p.then(function(d){ return {json:function(){ return Promise.resolve(JSON.parse(JSON.stringify(d))); }}; });
+}
+function limpiarAvisoLectura(){
+  var aviso = document.getElementById('read-notice'); if (aviso) aviso.remove();
+}
+function avisarLectura(reintentar){
+  limpiarAvisoLectura();
+  var aviso = document.createElement('div'); aviso.id = 'read-notice';
+  aviso.setAttribute('role','status');
+  aviso.style.cssText = 'margin:12px auto;padding:12px 16px;max-width:900px;background:#fff7ed;color:#7c2d12;border-radius:12px';
+  var texto = document.createElement('span');
+  texto.textContent = 'Refresh delayed. Your current view has been kept. ';
+  var boton = document.createElement('button'); boton.type = 'button';
+  boton.className = 'btn-back'; boton.textContent = 'Retry'; boton.onclick = reintentar;
+  aviso.appendChild(texto); aviso.appendChild(boton); app.insertBefore(aviso,app.firstChild);
 }
 // Execution/view fences remain independent of response telemetry.
 var promptLlamadaActual = null;
@@ -1088,9 +1131,12 @@ function cargarLista(render){
     })
     .catch(function(){
       if (contexto !== contextoPanel() || peticion !== serieLista) return;
-      if (render && vistaActual === 'lista') {
-        app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
-          '<p class="muted">Check your signal.</p>' +
+      if (vistaActual !== 'lista') return;
+      if (LISTA.length && document.getElementById('rows')) {
+        avisarLectura(function(){ if (vistaActual === 'lista' && contexto === contextoPanel()) cargarLista(false); });
+      } else {
+        app.innerHTML = '<div class="center"><h2>Taking longer than usual</h2>' +
+          '<p class="muted">The lead service did not respond in time. Please retry.</p>' +
           '<button class="btn-back" onclick="verLista()">Retry</button></div>';
       }
     });
@@ -1249,7 +1295,7 @@ pollTimer = setInterval(tickRefresco, 60000);
 setInterval(function(){
   if (vistaActual === 'lista' && document.visibilityState === 'visible') {
     var rows = document.getElementById('rows');
-    if (rows) rows.innerHTML = construirCuerpo();
+    if (rows) repintarFilas();
   }
 }, 60000);
 document.addEventListener('visibilitychange', function(){
@@ -2743,14 +2789,14 @@ function filaSeguroDetalle(d){
 // que el prefetch no contamina metricas. Escalonado 350ms.
 var prefetchEnCurso = false;
 function prefetchDetalles(){
-  if (prefetchEnCurso) return;
+  if (prefetchEnCurso || document.visibilityState !== 'visible') return;
   var epoca = epocaDatos;
   var contexto = contextoPanel(), adm = ADM;
   if (contextoAutorizado !== contexto || Date.now() >= autorizadoHasta) return;
-  var cand = LISTA.filter(function(l){ return l && l.id && l.t && !cacheDetalleLeer(l.id,l.t); }).slice(0,6), k = 0;
+  var cand = LISTA.filter(function(l){ return l && l.id && l.t && !cacheDetalleLeer(l.id,l.t); }).slice(0,2), k = 0;
   prefetchEnCurso = true;
   (function uno(){
-    if (epoca !== epocaDatos || contexto !== contextoPanel() || Date.now() >= autorizadoHasta || k >= cand.length || vistaActual === 'detalle') { prefetchEnCurso = false; return; }
+    if (epoca !== epocaDatos || contexto !== contextoPanel() || Date.now() >= autorizadoHasta || k >= cand.length || vistaActual !== 'lista' || document.visibilityState !== 'visible') { prefetchEnCurso = false; return; }
     var l = cand[k++];
     panelFetch(API + '?api=lead&id=' + encodeURIComponent(l.id) + '&t=' + encodeURIComponent(l.t) +
       (adm ? '&adm=' + encodeURIComponent(adm) : ''))
@@ -2838,6 +2884,7 @@ function cargarDetalle(){
     .then(function(d){
       if (!vistaVigente(q)) return;
       if (d && d.ok && (d.id !== q.id || !!d.admin !== !!ADM)) return;
+      limpiarAvisoLectura();
       if (!d.ok) {
         // v4.4: sesión admin vencida — pedir código nuevo (el motor NO
         // registró la apertura).
@@ -2862,8 +2909,15 @@ function cargarDetalle(){
     .catch(function(){
       if (!vistaVigente(q)) return;
       if (vistaActual !== 'detalle') return; // v4.4: el usuario ya navegó
-      app.innerHTML = '<div class="center"><h2>Connection error</h2>' +
-        '<p class="muted">Check your signal and reload the page.</p></div>';
+      if (LEAD && LEAD.id === q.id) {
+        avisarLectura(function(){ if (vistaVigente(q)) cargarDetalle(); });
+      } else {
+        app.innerHTML = '<div class="center"><h2>Taking longer than usual</h2>' +
+          '<p class="muted">The lead service did not respond in time.</p>' +
+          '<button class="btn-back" id="retry-read">Retry</button>' +
+          '<button class="btn-back sec" onclick="irALeads()">All leads</button></div>';
+        document.getElementById('retry-read').onclick = function(){ if (vistaVigente(q)) cargarDetalle(); };
+      }
     });
 }
 function cargar(){ verDetalle(ID, T, false); }
