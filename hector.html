@@ -336,7 +336,7 @@ var promptLlamadaActual = null;
 function proyeccionDetalle(d){
   if (!d) return null;
   var v = {};
-  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms') v[k] = d[k]; });
+  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms' && k !== 'svc' && k !== 'cached') v[k] = d[k]; });
   return JSON.stringify(v);
 }
 document.addEventListener('visibilitychange', function(){
@@ -364,6 +364,19 @@ function autorizarLista(leads){
   contextoAutorizado = contextoPanel(); autorizadoHasta = Date.now() + 90000; autorizados = {};
   leads.forEach(function(l){ autorizados[l.id] = l.t; }); return true;
 }
+function cacheDetalleLeer(id,t){
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta || autorizados[id] !== t) return null;
+  try { var c = JSON.parse(localStorage.getItem(STORE + 'lead:' + id) || 'null');
+    if (c && c.contexto === contextoPanel() && c.t === t && c.hasta > Date.now() && c.epoca === epocaDatos &&
+        c.data && c.data.ok && c.data.id === id && !!c.data.admin === !!ADM) return c.data;
+  } catch(e) {} return null;
+}
+function cacheDetalleGuardar(id,t,data){
+  if (!idDelPanel(id) || !data || !data.ok || data.id !== id || !!data.admin !== !!ADM) return;
+  if (contextoAutorizado !== contextoPanel() || Date.now() >= autorizadoHasta || autorizados[id] !== t) return;
+  try { localStorage.setItem(STORE + 'lead:' + id, JSON.stringify({contexto:contextoPanel(),t:t,hasta:Date.now()+90000,epoca:epocaDatos,data:data})); } catch(e) {}
+}
+
 var SES = null, ADM = null;
 try { SES = localStorage.getItem(STORE + 'session') || null; } catch (e) {}
 try { ADM = localStorage.getItem('lm_v2_admin') || null; } catch (e) {}
@@ -653,7 +666,9 @@ function verDetalle(id, t, desdeLista){
   // cambia en las métricas.
   var prev = null;
   for (var i = 0; contextoAutorizado === contextoPanel() && Date.now() < autorizadoHasta && i < LISTA.length; i++) if (LISTA[i].id === id) { prev = LISTA[i]; break; }
-  if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
+  var cacheado = cacheDetalleLeer(id,t);
+  if (cacheado) { LEAD = cacheado; render(); }
+  else if (prev) { pintarEsqueleto(prev); } else { app.innerHTML = '<div class="spin"></div>'; }
   // v1.2: sin ping previo en modo admin — el motor v21.5 responde
   // admin_expired sin registrar apertura si la sesión venció.
   cargarDetalle();
@@ -685,7 +700,7 @@ function pintarEsqueleto(l){
 }
 
 function cargarDetalle(){
-  var q = capturarVista();
+  var q = capturarVista(), datos = epocaDatos;
   panelFetch(API + '?api=h_lead&id=' + encodeURIComponent(q.id) + '&t=' + encodeURIComponent(q.t) +
       (ADM ? '&adm=' + encodeURIComponent(ADM) : ''))
     .then(function(r){ return r.json(); })
@@ -704,7 +719,11 @@ function cargarDetalle(){
         return;
       }
       if (vistaActual !== 'detalle') return; // v1.2: el usuario ya navegó
+      if (datos !== epocaDatos) return;
+      cacheDetalleGuardar(q.id,q.t,d);
       var igual = LEAD && proyeccionDetalle(LEAD) === proyeccionDetalle(d);
+      var notes = document.getElementById('notes');
+      if (LEAD && (sel !== null || (notes && String(notes.value || '').trim()))) { LEAD = d; return; }
       LEAD = d; if (!igual) render();
     })
     .catch(function(){

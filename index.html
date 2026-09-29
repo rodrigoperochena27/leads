@@ -978,7 +978,7 @@ var promptLlamadaActual = null;
 function proyeccionDetalle(d){
   if (!d) return null;
   var v = {};
-  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms') v[k] = d[k]; });
+  Object.keys(d).sort().forEach(function(k){ if (k !== 'ms' && k !== 'svc' && k !== 'cached') v[k] = d[k]; });
   return JSON.stringify(v);
 }
 document.addEventListener('visibilitychange', function(){
@@ -1175,8 +1175,7 @@ function cargarLista(render){
       }
       if (!autorizarLista(d.leads || [])) return;
       LISTA = d.leads || [];
-      prefetchDetalles(); // v6.28: los proximos opens salen del cache
-      if (vistaActual === 'lista') pintarLista(render);
+      if (vistaActual === 'lista') { pintarLista(render); prefetchDetalles(); }
     })
     .catch(function(){
       if (contexto !== contextoPanel() || peticion !== serieLista) return;
@@ -2842,7 +2841,7 @@ function prefetchDetalles(){
   var epoca = epocaDatos;
   var contexto = contextoPanel(), adm = ADM;
   if (contextoAutorizado !== contexto || Date.now() >= autorizadoHasta) return;
-  var cand = LISTA.filter(function(l){ return l && l.id && l.t && !cacheDetalleLeer(l.id,l.t); }).slice(0,2), k = 0;
+  var cand = filtrar().filter(function(l){ return l && l.id && l.t && !cacheDetalleLeer(l.id,l.t); }).slice(0,2), k = 0;
   prefetchEnCurso = true;
   (function uno(){
     if (epoca !== epocaDatos || contexto !== contextoPanel() || Date.now() >= autorizadoHasta || k >= cand.length || vistaActual !== 'lista' || document.visibilityState !== 'visible') { prefetchEnCurso = false; return; }
