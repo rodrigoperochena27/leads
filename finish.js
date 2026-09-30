@@ -15,7 +15,7 @@ for(const name of ['renderLeads','renderFollowups','renderActivity']){const orig
 const sortLabels={newest:'Recent activity',oldest:'Oldest received',name:'Name A–Z',status:'By status'};
 document.addEventListener('click',e=>{const b=e.target.closest('button');if(b?.hasAttribute('data-sort-menu'))modal('Sort leads','Choose how to order your leads',`<div class="sort-options">${Object.entries(sortLabels).map(([v,t])=>`<button data-sort-choice="${v}" aria-pressed="${v===sort}">${icon(v===sort?'checkcircle':'sort')}<span>${t}</span></button>`).join('')}</div>`,'<button class="btn" data-action="close">Cancel</button>');if(b?.dataset.sortChoice){sort=b.dataset.sortChoice;close();renderLeads()}},true);
 // Keep list filters mutually understandable: Upcoming starts tomorrow; Today includes today's overdue items.
-const followFilterOriginal=followFiltered;followFiltered=function(){let a=followFilterOriginal();if(followFilter==='upcoming')a=a.filter(l=>dateKey(new Date(task(l.id).at))>today());if(dateFrom&&dateTo&&dateFrom>dateTo)return [];return a};
+const followFilterOriginal=followFiltered;followFiltered=function(){let a=followFilterOriginal();if(dateFrom&&dateTo&&dateFrom>dateTo)return [];return a};
 let filterObserver=new MutationObserver(()=>{if(!$('#main .filters:not(.filter-scroll .filters)'))return;fadeFilters()});filterObserver.observe($('#main'),{childList:true,subtree:true});
 window.addEventListener('online',()=>toast('Connection restored'));
 window.addEventListener('offline',()=>toast('You’re offline. Reconnect before saving changes.'));
