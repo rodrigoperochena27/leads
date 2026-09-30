@@ -1,0 +1,1 @@
+'use strict';const params=new URLSearchParams(location.search),id=params.get('lead')||params.get('id'),target=new URL('./',location.href);if(id&&/^[A-Za-z0-9-]{1,30}$/.test(id))target.searchParams.set('lead',id);location.replace(target.href);
