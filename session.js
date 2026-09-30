@@ -33,6 +33,6 @@ document.addEventListener('click',e=>{const b=e.target.closest('button,a');if(!b
 // Guards protect all persistence paths, including note drafts and notification acknowledgements.
 const persistSession=persist;persist=function(){if(!currentSession||isReadOnly()||!IS_LOCAL_PREVIEW)return;persistSession()};
 function bootSession(){
-if(IS_LOCAL_PREVIEW){try{const stored=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');if(stored)currentSession=stored}catch{}if(new URLSearchParams(location.search).has('login'))showAuth();else enterSession(currentSession)}else{document.body.classList.add('signed-out');crmRequest('session').then(r=>enterSession(r.principal)).catch(()=>showAuth())}
+if(IS_LOCAL_PREVIEW){try{const stored=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');if(stored)currentSession=stored}catch{}if(new URLSearchParams(location.search).has('login'))showAuth();else enterSession(currentSession)}else{if(CRM_API_URL.startsWith('https://')&&!sessionStorage.getItem(ACCESS_STORAGE_NAME)){showAuth();return}document.body.classList.add('signed-out');crmRequest('session').then(r=>enterSession(r.principal)).catch(()=>showAuth())}
 
 }
