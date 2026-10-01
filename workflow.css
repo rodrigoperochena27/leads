@@ -5,3 +5,6 @@
 
 a.btn[data-native-contact]{color:var(--ink)}a.btn.primary[data-native-contact]{color:#fff}.dock a.btn.whatsapp{color:#397c5c}
 @media(max-width:700px){.lead-card{grid-template-rows:18px 15px 15px 14px 16px;padding:6px 9px;min-height:92px}.card-name{line-height:18px}.card-business{line-height:15px}.card-type{line-height:15px}.card-coverages .cov{line-height:13px}.card-footer{padding-top:1px}.lead-group-title{margin-bottom:7px}.page-title{margin-bottom:10px}.tools{margin-bottom:7px}.filters{margin-bottom:9px}}
+
+/* Background data updates preserve the current position without entrance animations. */
+.background-refresh #main *,.background-rendered,.background-rendered *{animation:none!important;scroll-behavior:auto!important}
