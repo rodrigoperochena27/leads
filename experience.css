@@ -38,15 +38,13 @@
  .detail-head .client-clock .clock-zone{font-size:8px!important;line-height:1.35;margin:0!important;white-space:normal}
 }
 @media(max-width:360px){.detail-head .identity-line{grid-template-columns:minmax(0,1fr) 82px;gap:9px!important}.detail-head .client-clock{width:82px!important;min-width:82px!important;max-width:82px}.detail-head .client-clock .clock-value{font-size:18px!important}.detail-head .identity-copy h1{font-size:20px!important}.detail-head .identity>.business-icon{width:28px;height:28px;min-width:28px}.identity .id-status .badge,.identity .id-status .temperature{font-size:9px!important;padding:5px 6px!important}}
-/* Desktop paired facts grow together while preserving the full field contents. */
-@media(min-width:701px){
+/* Paired facts grow together on mobile and desktop without clipping values. */
  .info-grid .facts-pair{align-items:stretch!important}
  .info-grid .facts-pair>.info-section{height:100%!important;display:flex!important;flex-direction:column;box-sizing:border-box}
  .info-grid .facts-pair>.info-section>.section-label{min-height:36px;margin-bottom:8px!important;align-items:center;line-height:1.35}
  .info-grid .facts-pair>.info-section>dl{display:flex;flex-direction:column;flex:1;margin:0!important}
  .info-grid .facts-pair>.info-section>dl>.field-row{display:flex!important;flex-direction:column;justify-content:center;align-items:stretch!important;flex:1;gap:3px!important;min-height:45px;padding:7px 0!important}
  .info-grid .facts-pair>.info-section>dl>.field-row dt,.info-grid .facts-pair>.info-section>dl>.field-row dd{width:100%;max-width:none;flex:none;text-align:left!important;margin:0!important}
-}
 
 /* Identity first, workflow second, receipt metadata last. */
 .detail-head .identity-line{display:grid!important;grid-template-columns:minmax(0,1fr) 132px;align-items:center!important;gap:28px!important}
